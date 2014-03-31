@@ -42,6 +42,9 @@ import java.io.IOException;
  */
 public class VoicePlayer implements OnCompletionListener, OnPreparedListener, OnErrorListener {
 
+
+    private static String TEMP_FILE = "tmprecording.amr";
+
     // VoicePlayer modes
     public enum MODE { NONE, PLAY, RECORD };
 
@@ -97,9 +100,9 @@ public class VoicePlayer implements OnCompletionListener, OnPreparedListener, On
         this.recorder = new MediaRecorder();
 
         if (Environment.getExternalStorageState().equals(Environment.MEDIA_MOUNTED)) {
-            this.tempFile = Environment.getExternalStorageDirectory().getAbsolutePath() + "/tmprecording.3gp";
+            this.tempFile = handler.cordova.getActivity().getExternalCacheDir().getAbsolutePath() + File.separator + TEMP_FILE;
         } else {
-            this.tempFile = "/data/data/" + handler.cordova.getActivity().getPackageName() + "/cache/tmprecording.3gp";
+            this.tempFile = handler.cordova.getActivity().getCacheDir().getAbsolutePath() + File.separator + TEMP_FILE;
         }
 
     }
@@ -138,6 +141,8 @@ public class VoicePlayer implements OnCompletionListener, OnPreparedListener, On
         case NONE:
             this.voiceFile = file;
             this.recorder.setAudioSource(MediaRecorder.AudioSource.MIC);
+            this.recorder.setAudioSamplingRate(8000);
+            this.recorder.setAudioChannels(1);          
             this.recorder.setOutputFormat(MediaRecorder.OutputFormat.AMR_NB); // THREE_GPP);
             this.recorder.setAudioEncoder(MediaRecorder.AudioEncoder.AMR_NB); //AMR_NB);
             this.recorder.setOutputFile(this.tempFile);
@@ -172,8 +177,9 @@ public class VoicePlayer implements OnCompletionListener, OnPreparedListener, On
         if (!file.startsWith("/")) {
             if (Environment.getExternalStorageState().equals(Environment.MEDIA_MOUNTED)) {
                 file = Environment.getExternalStorageDirectory().getAbsolutePath() + File.separator + file;
+                //file = handler.cordova.getActivity().getExternalFilesDir("Voice").getAbsolutePath() + File.separator + file;
             } else {
-                file = "/data/data/" + handler.cordova.getActivity().getPackageName() + "/cache/" + file;
+                file = handler.cordova.getActivity().getCacheDir().getAbsolutePath() + File.separator + file;
             }
         }
 

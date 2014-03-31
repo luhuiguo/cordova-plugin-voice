@@ -20,7 +20,7 @@
     <platform name="android">
         <config-file target="res/xml/config.xml" parent="/*">
             <feature name="Voice">
-                <param name="android-package" value="org.luhuiguo.cordova.voice.VoiceHandler" />
+                <param name="android-package" value="com.luhuiguo.cordova.voice.VoiceHandler" />
             </feature>
         </config-file>
 
@@ -31,8 +31,8 @@
             <uses-permission android:name="android.permission.READ_PHONE_STATE" />
         </config-file>
 
-        <source-file src="src/android/VoiceHandler.java" target-dir="src/org/luhuiguo/cordova/voice" />
-        <source-file src="src/android/VoicePlayer.java" target-dir="src/org/luhuiguo/cordova/voice" />
+        <source-file src="src/android/VoiceHandler.java" target-dir="src/com/luhuiguo/cordova/voice" />
+        <source-file src="src/android/VoicePlayer.java" target-dir="src/com/luhuiguo/cordova/voice" />
     </platform>
 
     <!-- ios -->

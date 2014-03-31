@@ -76,7 +76,7 @@ public class VoiceHandler extends CordovaPlugin {
             this.startRecording(args.getString(0), VoiceHandler.stripFileProtocol(fileUriStr));
         }
         else if (action.equals("stopRecording")) {
-            this.stopRecordingAudio(args.getString(0));
+            this.stopRecording(args.getString(0));
         }
         else if (action.equals("startPlaying")) {
             String target = args.getString(1);
@@ -320,7 +320,6 @@ public class VoiceHandler extends CordovaPlugin {
      *
      * @param output			1=earpiece, 2=speaker
      */
-    @SuppressWarnings("deprecation")
     public void setVoiceOutputDevice(int output) {
         AudioManager audiMgr = (AudioManager) this.cordova.getActivity().getSystemService(Context.AUDIO_SERVICE);
         if (output == 2) {

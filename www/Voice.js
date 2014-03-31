@@ -168,7 +168,7 @@ Voice.onStatus = function(id, msgType, value) {
         switch(msgType) {
             case Voice.VOICE_STATE :
                 voice.statusCallback && voice.statusCallback(value);
-                if(value == VOICE.MEDIA_STOPPED) {
+                if(value == Voice.VOICE_STOPPED) {
                     voice.successCallback && voice.successCallback();
                 }
                 break;
