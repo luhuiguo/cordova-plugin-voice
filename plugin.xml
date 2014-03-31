@@ -1,0 +1,49 @@
+<?xml version='1.0' encoding='utf-8' ?>
+<plugin id="com.luhuiguo.cordova.voice" version="0.0.1" xmlns="http://apache.org/cordova/ns/plugins/1.0" xmlns:android="http://schemas.android.com/apk/res/android">
+    <name>Voice</name>
+    <description>Cordova Voice Plugin</description>
+    <license>Apache 2.0</license>
+    <keywords>cordova,media,voice</keywords>
+
+    <repo>https://github.com/luhuiguo/cordova-plugin-voice.git</repo>
+    <issue>https://github.com/luhuiguo/cordova-plugin-voice/issues</issue>
+
+    <js-module src="www/VoiceError.js" name="VoiceError">
+        <clobbers target="window.VoiceError" />
+    </js-module>
+
+    <js-module src="www/Voice.js" name="Voice">
+        <clobbers target="window.Voice" />
+    </js-module>
+
+    <!-- android -->
+    <platform name="android">
+        <config-file target="res/xml/config.xml" parent="/*">
+            <feature name="Voice">
+                <param name="android-package" value="org.luhuiguo.cordova.voice.VoiceHandler" />
+            </feature>
+        </config-file>
+
+        <config-file target="AndroidManifest.xml" parent="/*">
+            <uses-permission android:name="android.permission.RECORD_AUDIO" />
+            <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+            <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+            <uses-permission android:name="android.permission.READ_PHONE_STATE" />
+        </config-file>
+
+        <source-file src="src/android/VoiceHandler.java" target-dir="src/org/luhuiguo/cordova/voice" />
+        <source-file src="src/android/VoicePlayer.java" target-dir="src/org/luhuiguo/cordova/voice" />
+    </platform>
+
+    <!-- ios -->
+    <platform name="ios">
+        <config-file parent="/*" target="config.xml">
+            <feature name="Voice">
+                <param name="ios-package" value="CDVVoice" />
+            </feature>
+        </config-file>
+        <header-file src="src/ios/CDVVoice.h" />
+        <source-file src="src/ios/CDVVoice.m" />
+    </platform>
+
+</plugin>
