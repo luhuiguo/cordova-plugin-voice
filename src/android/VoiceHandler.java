@@ -47,7 +47,7 @@ public class VoiceHandler extends CordovaPlugin {
     /**
      * Constructor.
      */
-    public AudioHandler() {
+    public VoiceHandler() {
         this.players = new HashMap<String, VoicePlayer>();
         this.pausedForPhone = new ArrayList<VoicePlayer>();
     }
