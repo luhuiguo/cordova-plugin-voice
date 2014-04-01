@@ -41,7 +41,7 @@ import java.util.HashMap;
 public class VoiceHandler extends CordovaPlugin {
 
     public static String TAG = "VoiceHandler";
-    HashMap<String, VoicePlayer> players;	// Audio player object
+    HashMap<String, VoicePlayer> players;   // Audio player object
     ArrayList<VoicePlayer> pausedForPhone;     // Audio players that were paused when phone call came in
 
     /**
@@ -54,10 +54,10 @@ public class VoiceHandler extends CordovaPlugin {
 
     /**
      * Executes the request and returns PluginResult.
-     * @param action 		The action to execute.
-     * @param args 			JSONArry of arguments for the plugin.
-     * @param callbackContext		The callback context used when calling back into JavaScript.
-     * @return 				A PluginResult object with a status and message.
+     * @param action        The action to execute.
+     * @param args          JSONArry of arguments for the plugin.
+     * @param callbackContext       The callback context used when calling back into JavaScript.
+     * @return              A PluginResult object with a status and message.
      */
     public boolean execute(String action, JSONArray args, CallbackContext callbackContext) throws JSONException {
         CordovaResourceApi resourceApi = webView.getResourceApi();
@@ -108,6 +108,11 @@ public class VoiceHandler extends CordovaPlugin {
             callbackContext.sendPluginResult(new PluginResult(status, f));
             return true;
         }
+     else if (action.equals("getPower")) {
+        float f = this.getPower(args.getString(0));
+        callbackContext.sendPluginResult(new PluginResult(status, f));
+        return true;
+    }
         else if (action.equals("getDuration")) {
             float f = this.getDuration(args.getString(0), args.getString(1));
             callbackContext.sendPluginResult(new PluginResult(status, f));
@@ -193,7 +198,7 @@ public class VoiceHandler extends CordovaPlugin {
 
     /**
      * Release the voice player instance to save memory.
-     * @param id				The id of the voice player
+     * @param id                The id of the voice player
      */
     private boolean release(String id) {
         if (!this.players.containsKey(id)) {
@@ -207,8 +212,8 @@ public class VoiceHandler extends CordovaPlugin {
 
     /**
      * Start recording and save the specified file.
-     * @param id				The id of the voice player
-     * @param file				The name of the file
+     * @param id                The id of the voice player
+     * @param file              The name of the file
      */
     public void startRecording(String id, String file) {
         VoicePlayer voice = this.players.get(id);
@@ -221,7 +226,7 @@ public class VoiceHandler extends CordovaPlugin {
 
     /**
      * Stop recording and save to the file specified when recording started.
-     * @param id				The id of the voice player
+     * @param id                The id of the voice player
      */
     public void stopRecording(String id) {
         VoicePlayer voice = this.players.get(id);
@@ -232,8 +237,8 @@ public class VoiceHandler extends CordovaPlugin {
 
     /**
      * Start or resume playing voice file.
-     * @param id				The id of the voice player
-     * @param file				The name of the voice file.
+     * @param id                The id of the voice player
+     * @param file              The name of the voice file.
      */
     public void startPlaying(String id, String file) {
         VoicePlayer voice = this.players.get(id);
@@ -246,8 +251,8 @@ public class VoiceHandler extends CordovaPlugin {
 
     /**
      * Seek to a location.
-     * @param id				The id of the voice player
-     * @param milliseconds		int: number of milliseconds to skip 1000 = 1 second
+     * @param id                The id of the voice player
+     * @param milliseconds      int: number of milliseconds to skip 1000 = 1 second
      */
     public void seekTo(String id, int milliseconds) {
         VoicePlayer voice = this.players.get(id);
@@ -258,7 +263,7 @@ public class VoiceHandler extends CordovaPlugin {
 
     /**
      * Pause playing.
-     * @param id				The id of the voice player
+     * @param id                The id of the voice player
      */
     public void pausePlaying(String id) {
         VoicePlayer voice = this.players.get(id);
@@ -269,7 +274,7 @@ public class VoiceHandler extends CordovaPlugin {
 
     /**
      * Stop playing the voice file.
-     * @param id				The id of the voice player
+     * @param id                The id of the voice player
      */
     public void stopPlaying(String id) {
         VoicePlayer voice = this.players.get(id);
@@ -282,8 +287,8 @@ public class VoiceHandler extends CordovaPlugin {
 
     /**
      * Get current position of playback.
-     * @param id				The id of the voice player
-     * @return 					position in msec
+     * @param id                The id of the voice player
+     * @return                  position in msec
      */
     public float getCurrentPosition(String id) {
         VoicePlayer voice = this.players.get(id);
@@ -292,12 +297,20 @@ public class VoiceHandler extends CordovaPlugin {
         }
         return -1;
     }
+    
+    public float getPower(String id) {
+        VoicePlayer voice = this.players.get(id);
+        if (voice != null) {
+            return voice.getPower();
+        }
+        return -1;
+    }
 
     /**
      * Get the duration of the voice file.
-     * @param id				The id of the voice player
-     * @param file				The name of the voice file.
-     * @return					The duration in msec.
+     * @param id                The id of the voice player
+     * @param file              The name of the voice file.
+     * @return                  The duration in msec.
      */
     public float getDuration(String id, String file) {
 
@@ -318,7 +331,7 @@ public class VoiceHandler extends CordovaPlugin {
     /**
      * Set the voice device to be used for playback.
      *
-     * @param output			1=earpiece, 2=speaker
+     * @param output            1=earpiece, 2=speaker
      */
     public void setVoiceOutputDevice(int output) {
         AudioManager audiMgr = (AudioManager) this.cordova.getActivity().getSystemService(Context.AUDIO_SERVICE);
@@ -336,7 +349,7 @@ public class VoiceHandler extends CordovaPlugin {
     /**
      * Get the voice device to be used for playback.
      *
-     * @return					1=earpiece, 2=speaker
+     * @return                  1=earpiece, 2=speaker
      */
     public int getVoiceOutputDevice() {
         AudioManager audiMgr = (AudioManager) this.cordova.getActivity().getSystemService(Context.AUDIO_SERVICE);
@@ -351,7 +364,7 @@ public class VoiceHandler extends CordovaPlugin {
     /**
      * Set the volume for an voice device
      *
-     * @param id				The id of the audio player
+     * @param id                The id of the audio player
      * @param volume            Volume to adjust to 0.0f - 1.0f
      */
     public void setVolume(String id, float volume) {

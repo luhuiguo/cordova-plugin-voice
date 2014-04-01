@@ -47,6 +47,7 @@ var Voice = function(src, successCallback, errorCallback, statusCallback) {
     this.statusCallback = statusCallback;
     this._duration = -1;
     this._position = -1;
+    this._power = -1;
     exec(null, this.errorCallback, "Voice", "create", [this.id, this.src]);
 };
 
@@ -54,6 +55,7 @@ var Voice = function(src, successCallback, errorCallback, statusCallback) {
 Voice.VOICE_STATE = 1;
 Voice.VOICE_DURATION = 2;
 Voice.VOICE_POSITION = 3;
+Voice.VOICE_POWER = 4;
 Voice.VOICE_ERROR = 9;
 
 // Voice states
@@ -124,6 +126,14 @@ Voice.prototype.getCurrentPosition = function(success, fail) {
     }, fail, "Voice", "getCurrentPosition", [this.id]);
 };
 
+Voice.prototype.getPower = function(success, fail) {
+    var me = this;
+    exec(function(p) {
+        me._power = p;
+        success(p);
+    }, fail, "Voice", "getPower", [this.id]);
+};
+
 /**
  * Start recording voice file.
  */
@@ -181,6 +191,9 @@ Voice.onStatus = function(id, msgType, value) {
             case Voice.VOICE_POSITION :
                 voice._position = Number(value);
                 break;
+            case Voice.VOICE_POWER :
+                voice._power = Number(value);
+                break;    
             default :
                 console.error && console.error("Unhandled Voice.onStatus :: " + msgType);
                 break;

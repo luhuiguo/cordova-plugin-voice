@@ -15,7 +15,7 @@
        KIND, either express or implied.  See the License for the
        specific language governing permissions and limitations
        under the License.
-*/
+ */
 package com.luhuiguo.cordova.voice;
 
 import android.media.AudioManager;
@@ -32,30 +32,27 @@ import java.io.FileInputStream;
 import java.io.IOException;
 
 /**
- * This class implements the voice playback and recording capabilities used by Cordova.
- * It is called by the VoiceHandler Cordova class.
- * Only one file can be played or recorded per class instance.
- *
- * Local voice files must reside in one of two places:
- *      android_asset:      file name must start with /android_asset/sound.mp3
- *      sdcard:             file name is just sound.mp3
+ * This class implements the voice playback and recording capabilities used by
+ * Cordova. It is called by the VoiceHandler Cordova class. Only one file can be
+ * played or recorded per class instance.
+ * 
+ * Local voice files must reside in one of two places: android_asset: file name
+ * must start with /android_asset/sound.mp3 sdcard: file name is just sound.mp3
  */
-public class VoicePlayer implements OnCompletionListener, OnPreparedListener, OnErrorListener {
-
+public class VoicePlayer implements OnCompletionListener, OnPreparedListener,
+        OnErrorListener {
 
     private static String TEMP_FILE = "tmprecording.amr";
 
     // VoicePlayer modes
-    public enum MODE { NONE, PLAY, RECORD };
+    public enum MODE {
+        NONE, PLAY, RECORD
+    };
 
     // VoicePlayer states
-    public enum STATE { VOICE_NONE,
-                        VOICE_STARTING,
-                        VOICE_RUNNING,
-                        VOICE_PAUSED,
-                        VOICE_STOPPED,
-                        VOICE_LOADING
-                      };
+    public enum STATE {
+        VOICE_NONE, VOICE_STARTING, VOICE_RUNNING, VOICE_PAUSED, VOICE_STOPPED, VOICE_LOADING
+    };
 
     private static final String LOG_TAG = "VoicePlayer";
 
@@ -66,32 +63,36 @@ public class VoicePlayer implements OnCompletionListener, OnPreparedListener, On
     private static int VOICE_ERROR = 9;
 
     // VOICE error codes
-    private static int VOICE_ERR_NONE_ACTIVE    = 0;
-    private static int VOICE_ERR_ABORTED        = 1;
-//    private static int VOICE_ERR_NETWORK        = 2;
-//    private static int VOICE_ERR_DECODE         = 3;
-//    private static int VOICE_ERR_NONE_SUPPORTED = 4;
+    private static int VOICE_ERR_NONE_ACTIVE = 0;
+    private static int VOICE_ERR_ABORTED = 1;
+    // private static int VOICE_ERR_NETWORK = 2;
+    // private static int VOICE_ERR_DECODE = 3;
+    // private static int VOICE_ERR_NONE_SUPPORTED = 4;
 
-    private VoiceHandler handler;           // The VoiceHandler object
-    private String id;                      // The id of this player (used to identify Voice object in JavaScript)
-    private MODE mode = MODE.NONE;          // Playback or Recording mode
+    private VoiceHandler handler; // The VoiceHandler object
+    private String id; // The id of this player (used to identify Voice object
+                        // in JavaScript)
+    private MODE mode = MODE.NONE; // Playback or Recording mode
     private STATE state = STATE.VOICE_NONE; // State of recording or playback
 
-    private String voiceFile = null;        // File name to play or record to
-    private float duration = -1;            // Duration of voice
+    private String voiceFile = null; // File name to play or record to
+    private float duration = -1; // Duration of voice
 
-    private MediaRecorder recorder = null;  // Voice recording object
-    private String tempFile = null;         // Temporary recording file name
+    private MediaRecorder recorder = null; // Voice recording object
+    private String tempFile = null; // Temporary recording file name
 
-    private MediaPlayer player = null;      // Voice player object
-    private boolean prepareOnly = true;     // playback after file prepare flag
-    private int seekOnPrepared = 0;     // seek to this location once media is prepared
+    private MediaPlayer player = null; // Voice player object
+    private boolean prepareOnly = true; // playback after file prepare flag
+    private int seekOnPrepared = 0; // seek to this location once media is
+                                    // prepared
 
     /**
      * Constructor.
-     *
-     * @param handler           The voice handler object
-     * @param id                The id of this voice player
+     * 
+     * @param handler
+     *            The voice handler object
+     * @param id
+     *            The id of this voice player
      */
     public VoicePlayer(VoiceHandler handler, String id, String file) {
         this.handler = handler;
@@ -99,10 +100,15 @@ public class VoicePlayer implements OnCompletionListener, OnPreparedListener, On
         this.voiceFile = file;
         this.recorder = new MediaRecorder();
 
-        if (Environment.getExternalStorageState().equals(Environment.MEDIA_MOUNTED)) {
-            this.tempFile = handler.cordova.getActivity().getExternalCacheDir().getAbsolutePath() + File.separator + TEMP_FILE;
+        if (Environment.getExternalStorageState().equals(
+                Environment.MEDIA_MOUNTED)) {
+            this.tempFile = handler.cordova.getActivity().getExternalCacheDir()
+                    .getAbsolutePath()
+                    + File.separator + TEMP_FILE;
         } else {
-            this.tempFile = handler.cordova.getActivity().getCacheDir().getAbsolutePath() + File.separator + TEMP_FILE;
+            this.tempFile = handler.cordova.getActivity().getCacheDir()
+                    .getAbsolutePath()
+                    + File.separator + TEMP_FILE;
         }
 
     }
@@ -113,7 +119,8 @@ public class VoicePlayer implements OnCompletionListener, OnPreparedListener, On
     public void destroy() {
         // Stop any play or record
         if (this.player != null) {
-            if ((this.state == STATE.VOICE_RUNNING) || (this.state == STATE.VOICE_PAUSED)) {
+            if ((this.state == STATE.VOICE_RUNNING)
+                    || (this.state == STATE.VOICE_PAUSED)) {
                 this.player.stop();
                 this.setState(STATE.VOICE_STOPPED);
             }
@@ -129,22 +136,29 @@ public class VoicePlayer implements OnCompletionListener, OnPreparedListener, On
 
     /**
      * Start recording the specified file.
-     *
-     * @param file              The name of the file
+     * 
+     * @param file
+     *            The name of the file
      */
     public void startRecording(String file) {
         switch (this.mode) {
         case PLAY:
             Log.d(LOG_TAG, "VoicePlayer Error: Can't record in play mode.");
-            this.handler.webView.sendJavascript("cordova.require('com.luhuiguo.cordova.voice.Voice').onStatus('" + this.id + "', "+VOICE_ERROR+", { \"code\":"+VOICE_ERR_ABORTED+"});");
+            this.handler.webView
+                    .sendJavascript("cordova.require('com.luhuiguo.cordova.voice.Voice').onStatus('"
+                            + this.id
+                            + "', "
+                            + VOICE_ERROR
+                            + ", { \"code\":"
+                            + VOICE_ERR_ABORTED + "});");
             break;
         case NONE:
             this.voiceFile = file;
             this.recorder.setAudioSource(MediaRecorder.AudioSource.MIC);
             this.recorder.setAudioSamplingRate(8000);
-            this.recorder.setAudioChannels(1);          
+            this.recorder.setAudioChannels(1);
             this.recorder.setOutputFormat(MediaRecorder.OutputFormat.AMR_NB); // THREE_GPP);
-            this.recorder.setAudioEncoder(MediaRecorder.AudioEncoder.AMR_NB); //AMR_NB);
+            this.recorder.setAudioEncoder(MediaRecorder.AudioEncoder.AMR_NB); // AMR_NB);
             this.recorder.setOutputFile(this.tempFile);
             try {
                 this.recorder.prepare();
@@ -157,17 +171,29 @@ public class VoicePlayer implements OnCompletionListener, OnPreparedListener, On
                 e.printStackTrace();
             }
 
-            this.handler.webView.sendJavascript("cordova.require('com.luhuiguo.cordova.voice.Voice').onStatus('" + this.id + "', "+VOICE_ERROR+", { \"code\":"+VOICE_ERR_ABORTED+"});");
+            this.handler.webView
+                    .sendJavascript("cordova.require('com.luhuiguo.cordova.voice.Voice').onStatus('"
+                            + this.id
+                            + "', "
+                            + VOICE_ERROR
+                            + ", { \"code\":"
+                            + VOICE_ERR_ABORTED + "});");
             break;
         case RECORD:
             Log.d(LOG_TAG, "VoicePlayer Error: Already recording.");
-            this.handler.webView.sendJavascript("cordova.require('com.luhuiguo.cordova.voice.Voice').onStatus('" + this.id + "', "+VOICE_ERROR+", { \"code\":"+VOICE_ERR_ABORTED+"});");
+            this.handler.webView
+                    .sendJavascript("cordova.require('com.luhuiguo.cordova.voice.Voice').onStatus('"
+                            + this.id
+                            + "', "
+                            + VOICE_ERROR
+                            + ", { \"code\":"
+                            + VOICE_ERR_ABORTED + "});");
         }
     }
 
     /**
      * Save temporary recorded file to specified name
-     *
+     * 
      * @param file
      */
     public void moveFile(String file) {
@@ -175,17 +201,24 @@ public class VoicePlayer implements OnCompletionListener, OnPreparedListener, On
         File f = new File(this.tempFile);
 
         if (!file.startsWith("/")) {
-            if (Environment.getExternalStorageState().equals(Environment.MEDIA_MOUNTED)) {
-                file = Environment.getExternalStorageDirectory().getAbsolutePath() + File.separator + file;
-                //file = handler.cordova.getActivity().getExternalFilesDir("Voice").getAbsolutePath() + File.separator + file;
+            if (Environment.getExternalStorageState().equals(
+                    Environment.MEDIA_MOUNTED)) {
+                file = Environment.getExternalStorageDirectory()
+                        .getAbsolutePath() + File.separator + file;
+                // file =
+                // handler.cordova.getActivity().getExternalFilesDir("Voice").getAbsolutePath()
+                // + File.separator + file;
             } else {
-                file = handler.cordova.getActivity().getCacheDir().getAbsolutePath() + File.separator + file;
+                file = handler.cordova.getActivity().getCacheDir()
+                        .getAbsolutePath()
+                        + File.separator + file;
             }
         }
 
         String logMsg = "renaming " + this.tempFile + " to " + file;
         Log.d(LOG_TAG, logMsg);
-        if (!f.renameTo(new File(file))) Log.e(LOG_TAG, "FAILED " + logMsg);
+        if (!f.renameTo(new File(file)))
+            Log.e(LOG_TAG, "FAILED " + logMsg);
     }
 
     /**
@@ -193,34 +226,34 @@ public class VoicePlayer implements OnCompletionListener, OnPreparedListener, On
      */
     public void stopRecording() {
         if (this.recorder != null) {
-            try{
+            try {
                 if (this.state == STATE.VOICE_RUNNING) {
                     this.recorder.stop();
                     this.setState(STATE.VOICE_STOPPED);
                 }
                 this.recorder.reset();
                 this.moveFile(this.voiceFile);
-            }
-            catch (Exception e) {
+            } catch (Exception e) {
                 e.printStackTrace();
             }
         }
     }
 
-    //==========================================================================
+    // ==========================================================================
     // Playback
-    //==========================================================================
+    // ==========================================================================
 
     /**
      * Start or resume playing voice file.
-     *
-     * @param file              The name of the voice file.
+     * 
+     * @param file
+     *            The name of the voice file.
      */
     public void startPlaying(String file) {
         if (this.readyPlayer(file) && this.player != null) {
             this.player.start();
             this.setState(STATE.VOICE_RUNNING);
-            this.seekOnPrepared = 0; //insures this is always reset
+            this.seekOnPrepared = 0; // insures this is always reset
         } else {
             this.prepareOnly = false;
         }
@@ -233,9 +266,14 @@ public class VoicePlayer implements OnCompletionListener, OnPreparedListener, On
         if (this.readyPlayer(this.voiceFile)) {
             this.player.seekTo(milliseconds);
             Log.d(LOG_TAG, "Send a onStatus update for the new seek");
-            this.handler.webView.sendJavascript("cordova.require('com.luhuiguo.cordova.voice.Voice').onStatus('" + this.id + "', " + VOICE_POSITION + ", " + milliseconds / 1000.0f + ");");
-        }
-        else {
+            this.handler.webView
+                    .sendJavascript("cordova.require('com.luhuiguo.cordova.voice.Voice').onStatus('"
+                            + this.id
+                            + "', "
+                            + VOICE_POSITION
+                            + ", "
+                            + milliseconds / 1000.0f + ");");
+        } else {
             this.seekOnPrepared = milliseconds;
         }
     }
@@ -249,10 +287,17 @@ public class VoicePlayer implements OnCompletionListener, OnPreparedListener, On
         if (this.state == STATE.VOICE_RUNNING && this.player != null) {
             this.player.pause();
             this.setState(STATE.VOICE_PAUSED);
-        }
-        else {
-            Log.d(LOG_TAG, "VoicePlayer Error: pausePlaying() called during invalid state: " + this.state.ordinal());
-            this.handler.webView.sendJavascript("cordova.require('com.luhuiguo.cordova.voice.Voice').onStatus('" + this.id + "', " + VOICE_ERROR + ", { \"code\":" + VOICE_ERR_NONE_ACTIVE + "});");
+        } else {
+            Log.d(LOG_TAG,
+                    "VoicePlayer Error: pausePlaying() called during invalid state: "
+                            + this.state.ordinal());
+            this.handler.webView
+                    .sendJavascript("cordova.require('com.luhuiguo.cordova.voice.Voice').onStatus('"
+                            + this.id
+                            + "', "
+                            + VOICE_ERROR
+                            + ", { \"code\":"
+                            + VOICE_ERR_NONE_ACTIVE + "});");
         }
     }
 
@@ -260,22 +305,31 @@ public class VoicePlayer implements OnCompletionListener, OnPreparedListener, On
      * Stop playing the voice file.
      */
     public void stopPlaying() {
-        if ((this.state == STATE.VOICE_RUNNING) || (this.state == STATE.VOICE_PAUSED)) {
+        if ((this.state == STATE.VOICE_RUNNING)
+                || (this.state == STATE.VOICE_PAUSED)) {
             this.player.pause();
             this.player.seekTo(0);
             Log.d(LOG_TAG, "stopPlaying is calling stopped");
             this.setState(STATE.VOICE_STOPPED);
-        }
-        else {
-            Log.d(LOG_TAG, "VoicePlayer Error: stopPlaying() called during invalid state: " + this.state.ordinal());
-            this.handler.webView.sendJavascript("cordova.require('com.luhuiguo.cordova.voice.Voice').onStatus('" + this.id + "', " + VOICE_ERROR + ", { \"code\":" + VOICE_ERR_NONE_ACTIVE + "});");
+        } else {
+            Log.d(LOG_TAG,
+                    "VoicePlayer Error: stopPlaying() called during invalid state: "
+                            + this.state.ordinal());
+            this.handler.webView
+                    .sendJavascript("cordova.require('com.luhuiguo.cordova.voice.Voice').onStatus('"
+                            + this.id
+                            + "', "
+                            + VOICE_ERROR
+                            + ", { \"code\":"
+                            + VOICE_ERR_NONE_ACTIVE + "});");
         }
     }
 
     /**
      * Callback to be invoked when playback of a media source has completed.
-     *
-     * @param player           The MediaPlayer that reached the end of the file
+     * 
+     * @param player
+     *            The MediaPlayer that reached the end of the file
      */
     public void onCompletion(MediaPlayer player) {
         Log.d(LOG_TAG, "on completion is calling stopped");
@@ -284,44 +338,61 @@ public class VoicePlayer implements OnCompletionListener, OnPreparedListener, On
 
     /**
      * Get current position of playback.
-     *
-     * @return                  position in msec or -1 if not playing
+     * 
+     * @return position in msec or -1 if not playing
      */
     public long getCurrentPosition() {
-        if ((this.state == STATE.VOICE_RUNNING) || (this.state == STATE.VOICE_PAUSED)) {
+        if ((this.state == STATE.VOICE_RUNNING)
+                || (this.state == STATE.VOICE_PAUSED)) {
             int curPos = this.player.getCurrentPosition();
-            this.handler.webView.sendJavascript("cordova.require('com.luhuiguo.cordova.voice.Voice').onStatus('" + this.id + "', " + VOICE_POSITION + ", " + curPos / 1000.0f + ");");
+            this.handler.webView
+                    .sendJavascript("cordova.require('com.luhuiguo.cordova.voice.Voice').onStatus('"
+                            + this.id
+                            + "', "
+                            + VOICE_POSITION
+                            + ", "
+                            + curPos
+                            / 1000.0f + ");");
             return curPos;
-        }
-        else {
+        } else {
             return -1;
         }
     }
 
+    public float getPower() {
+        if ((this.state == STATE.VOICE_RUNNING)
+                || (this.state == STATE.VOICE_PAUSED)) {
+            int amp = this.recorder.getMaxAmplitude();
+            float power = (float) amp / 32768;
+            return power;
+        } else {
+            return 0.0f;
+        }
+    }
+
     /**
-     * Determine if playback file is streaming or local.
-     * It is streaming if file name starts with "http://"
-     *
-     * @param file              The file name
-     * @return                  T=streaming, F=local
+     * Determine if playback file is streaming or local. It is streaming if file
+     * name starts with "http://"
+     * 
+     * @param file
+     *            The file name
+     * @return T=streaming, F=local
      */
     public boolean isStreaming(String file) {
         if (file.contains("http://") || file.contains("https://")) {
             return true;
-        }
-        else {
+        } else {
             return false;
         }
     }
 
     /**
-      * Get the duration of the voice file.
-      *
-      * @param file             The name of the voice file.
-      * @return                 The duration in msec.
-      *                             -1=can't be determined
-      *                             -2=not allowed
-      */
+     * Get the duration of the voice file.
+     * 
+     * @param file
+     *            The name of the voice file.
+     * @return The duration in msec. -1=can't be determined -2=not allowed
+     */
     public float getDuration(String file) {
 
         // Can't get duration of recording
@@ -347,8 +418,9 @@ public class VoicePlayer implements OnCompletionListener, OnPreparedListener, On
 
     /**
      * Callback to be invoked when the media source is ready for playback.
-     *
-     * @param player           The MediaPlayer that is ready for playback
+     * 
+     * @param player
+     *            The MediaPlayer that is ready for playback
      */
     public void onPrepared(MediaPlayer player) {
         // Listen for playback completion
@@ -359,7 +431,7 @@ public class VoicePlayer implements OnCompletionListener, OnPreparedListener, On
         if (!this.prepareOnly) {
             this.player.start();
             this.setState(STATE.VOICE_RUNNING);
-            this.seekOnPrepared = 0; //reset only when played
+            this.seekOnPrepared = 0; // reset only when played
         } else {
             this.setState(STATE.VOICE_STARTING);
         }
@@ -369,12 +441,19 @@ public class VoicePlayer implements OnCompletionListener, OnPreparedListener, On
         this.prepareOnly = true;
 
         // Send status notification to JavaScript
-        this.handler.webView.sendJavascript("cordova.require('com.luhuiguo.cordova.voice.Voice').onStatus('" + this.id + "', " + VOICE_DURATION + "," + this.duration + ");");
+        this.handler.webView
+                .sendJavascript("cordova.require('com.luhuiguo.cordova.voice.Voice').onStatus('"
+                        + this.id
+                        + "', "
+                        + VOICE_DURATION
+                        + ","
+                        + this.duration + ");");
     }
 
     /**
-     * By default Android returns the length of voice in mills but we want seconds
-     *
+     * By default Android returns the length of voice in mills but we want
+     * seconds
+     * 
      * @return length of clip in seconds
      */
     private float getDurationInSeconds() {
@@ -382,12 +461,17 @@ public class VoicePlayer implements OnCompletionListener, OnPreparedListener, On
     }
 
     /**
-     * Callback to be invoked when there has been an error during an asynchronous operation
-     *  (other errors will throw exceptions at method call time).
-     *
-     * @param player           the MediaPlayer the error pertains to
-     * @param arg1              the type of error that has occurred: (MEDIA_ERROR_UNKNOWN, MEDIA_ERROR_SERVER_DIED)
-     * @param arg2              an extra code, specific to the error.
+     * Callback to be invoked when there has been an error during an
+     * asynchronous operation (other errors will throw exceptions at method call
+     * time).
+     * 
+     * @param player
+     *            the MediaPlayer the error pertains to
+     * @param arg1
+     *            the type of error that has occurred: (MEDIA_ERROR_UNKNOWN,
+     *            MEDIA_ERROR_SERVER_DIED)
+     * @param arg2
+     *            an extra code, specific to the error.
      */
     public boolean onError(MediaPlayer player, int arg1, int arg2) {
         Log.d(LOG_TAG, "VoicePlayer.onError(" + arg1 + ", " + arg2 + ")");
@@ -397,38 +481,47 @@ public class VoicePlayer implements OnCompletionListener, OnPreparedListener, On
         this.player.release();
 
         // Send error notification to JavaScript
-        this.handler.webView.sendJavascript("cordova.require('com.luhuiguo.cordova.voice.Voice').onStatus('" + this.id + "', { \"code\":" + arg1 + "});");
+        this.handler.webView
+                .sendJavascript("cordova.require('com.luhuiguo.cordova.voice.Voice').onStatus('"
+                        + this.id + "', { \"code\":" + arg1 + "});");
         return false;
     }
 
     /**
      * Set the state and send it to JavaScript.
-     *
+     * 
      * @param state
      */
     private void setState(STATE state) {
         if (this.state != state) {
-            this.handler.webView.sendJavascript("cordova.require('com.luhuiguo.cordova.voice.Voice').onStatus('" + this.id + "', " + VOICE_STATE + ", " + state.ordinal() + ");");
+            this.handler.webView
+                    .sendJavascript("cordova.require('com.luhuiguo.cordova.voice.Voice').onStatus('"
+                            + this.id
+                            + "', "
+                            + VOICE_STATE
+                            + ", "
+                            + state.ordinal() + ");");
         }
         this.state = state;
     }
 
     /**
      * Set the mode and send it to JavaScript.
-     *
+     * 
      * @param state
      */
     private void setMode(MODE mode) {
         if (this.mode != mode) {
-            //mode is not part of the expected behavior, so no notification
-            //this.handler.webView.sendJavascript("cordova.require('org.apache.cordova.media.Media').onStatus('" + this.id + "', " + MEDIA_STATE + ", " + mode + ");");
+            // mode is not part of the expected behavior, so no notification
+            // this.handler.webView.sendJavascript("cordova.require('org.apache.cordova.media.Media').onStatus('"
+            // + this.id + "', " + MEDIA_STATE + ", " + mode + ");");
         }
         this.mode = mode;
     }
 
     /**
      * Get the voice state.
-     *
+     * 
      * @return int
      */
     public int getState() {
@@ -437,7 +530,7 @@ public class VoicePlayer implements OnCompletionListener, OnPreparedListener, On
 
     /**
      * Set the volume for voice player
-     *
+     * 
      * @param volume
      */
     public void setVolume(float volume) {
@@ -446,10 +539,11 @@ public class VoicePlayer implements OnCompletionListener, OnPreparedListener, On
 
     /**
      * attempts to put the player in play mode
+     * 
      * @return true if in playmode, false otherwise
      */
     private boolean playMode() {
-        switch(this.mode) {
+        switch (this.mode) {
         case NONE:
             this.setMode(MODE.PLAY);
             break;
@@ -457,60 +551,93 @@ public class VoicePlayer implements OnCompletionListener, OnPreparedListener, On
             break;
         case RECORD:
             Log.d(LOG_TAG, "VoicePlayer Error: Can't play in record mode.");
-            this.handler.webView.sendJavascript("cordova.require('com.luhuiguo.cordova.voice.Voice').onStatus('" + this.id + "', " + VOICE_ERROR + ", { \"code\":" + VOICE_ERR_ABORTED + "});");
-            return false; //player is not ready
+            this.handler.webView
+                    .sendJavascript("cordova.require('com.luhuiguo.cordova.voice.Voice').onStatus('"
+                            + this.id
+                            + "', "
+                            + VOICE_ERROR
+                            + ", { \"code\":"
+                            + VOICE_ERR_ABORTED + "});");
+            return false; // player is not ready
         }
         return true;
     }
 
     /**
      * attempts to initialize the media player for playback
-     * @param file the file to play
+     * 
+     * @param file
+     *            the file to play
      * @return false if player not ready, reports if in wrong mode or state
      */
     private boolean readyPlayer(String file) {
         if (playMode()) {
             switch (this.state) {
-                case VOICE_NONE:
-                    if (this.player == null) {
-                        this.player = new MediaPlayer();
-                    }
+            case VOICE_NONE:
+                if (this.player == null) {
+                    this.player = new MediaPlayer();
+                }
+                try {
+                    this.loadVoiceFile(file);
+                } catch (Exception e) {
+                    this.handler.webView
+                            .sendJavascript("cordova.require('com.luhuiguo.cordova.voice.Voice').onStatus('"
+                                    + this.id
+                                    + "', "
+                                    + VOICE_ERROR
+                                    + ", { \"code\":"
+                                    + VOICE_ERR_ABORTED
+                                    + "});");
+                }
+                return false;
+            case VOICE_LOADING:
+                // cordova js is not aware of MEDIA_LOADING, so we send
+                // MEDIA_STARTING instead
+                Log.d(LOG_TAG,
+                        "VoicePlayer Loading: startPlaying() called during media preparation: "
+                                + STATE.VOICE_STARTING.ordinal());
+                this.prepareOnly = false;
+                return false;
+            case VOICE_STARTING:
+            case VOICE_RUNNING:
+            case VOICE_PAUSED:
+                return true;
+            case VOICE_STOPPED:
+                // if we are readying the same file
+                if (this.voiceFile.compareTo(file) == 0) {
+                    // reset the voice file
+                    player.seekTo(0);
+                    player.pause();
+                    return true;
+                } else {
+                    // reset the player
+                    this.player.reset();
                     try {
                         this.loadVoiceFile(file);
                     } catch (Exception e) {
-                        this.handler.webView.sendJavascript("cordova.require('com.luhuiguo.cordova.voice.Voice').onStatus('" + this.id + "', "+VOICE_ERROR+", { \"code\":"+VOICE_ERR_ABORTED+"});");
+                        this.handler.webView
+                                .sendJavascript("cordova.require('com.luhuiguo.cordova.voice.Voice').onStatus('"
+                                        + this.id
+                                        + "', "
+                                        + VOICE_ERROR
+                                        + ", { \"code\":"
+                                        + VOICE_ERR_ABORTED
+                                        + "});");
                     }
+                    // if we had to prepare= the file, we won't be in the
+                    // correct state for playback
                     return false;
-                case VOICE_LOADING:
-                    //cordova js is not aware of MEDIA_LOADING, so we send MEDIA_STARTING instead
-                    Log.d(LOG_TAG, "VoicePlayer Loading: startPlaying() called during media preparation: " + STATE.VOICE_STARTING.ordinal());
-                    this.prepareOnly = false;
-                    return false;
-                case VOICE_STARTING:
-                case VOICE_RUNNING:
-                case VOICE_PAUSED:
-                    return true;
-                case VOICE_STOPPED:
-                    //if we are readying the same file
-                    if (this.voiceFile.compareTo(file) == 0) {
-                        //reset the voice file
-                        player.seekTo(0);
-                        player.pause();
-                        return true;
-                    } else {
-                        //reset the player
-                        this.player.reset();
-                        try {
-                            this.loadVoiceFile(file);
-                        } catch (Exception e) {
-                            this.handler.webView.sendJavascript("cordova.require('com.luhuiguo.cordova.voice.Voice').onStatus('" + this.id + "', " + VOICE_ERROR + ", { \"code\":" + VOICE_ERR_ABORTED + "});");
-                        }
-                        //if we had to prepare= the file, we won't be in the correct state for playback
-                        return false;
-                    }
-                default:
-                    Log.d(LOG_TAG, "VoicePlayer Error: startPlaying() called during invalid state: " + this.state);
-                    this.handler.webView.sendJavascript("cordova.require('com.luhuiguo.cordova.voice.Voice').onStatus('" + this.id + "', " + VOICE_ERROR + ", { \"code\":" + VOICE_ERR_ABORTED + "});");
+                }
+            default:
+                Log.d(LOG_TAG,
+                        "VoicePlayer Error: startPlaying() called during invalid state: "
+                                + this.state);
+                this.handler.webView
+                        .sendJavascript("cordova.require('com.luhuiguo.cordova.voice.Voice').onStatus('"
+                                + this.id
+                                + "', "
+                                + VOICE_ERROR
+                                + ", { \"code\":" + VOICE_ERR_ABORTED + "});");
             }
         }
         return false;
@@ -518,44 +645,48 @@ public class VoicePlayer implements OnCompletionListener, OnPreparedListener, On
 
     /**
      * load voice file
+     * 
      * @throws IOException
      * @throws IllegalStateException
      * @throws SecurityException
      * @throws IllegalArgumentException
      */
-    private void loadVoiceFile(String file) throws IllegalArgumentException, SecurityException, IllegalStateException, IOException {
+    private void loadVoiceFile(String file) throws IllegalArgumentException,
+            SecurityException, IllegalStateException, IOException {
         if (this.isStreaming(file)) {
             this.player.setDataSource(file);
             this.player.setAudioStreamType(AudioManager.STREAM_MUSIC);
-            //if it's a streaming file, play mode is implied
+            // if it's a streaming file, play mode is implied
             this.setMode(MODE.PLAY);
             this.setState(STATE.VOICE_STARTING);
             this.player.setOnPreparedListener(this);
             this.player.prepareAsync();
-        }
-        else {
+        } else {
             if (file.startsWith("/android_asset/")) {
                 String f = file.substring(15);
-                android.content.res.AssetFileDescriptor fd = this.handler.cordova.getActivity().getAssets().openFd(f);
-                this.player.setDataSource(fd.getFileDescriptor(), fd.getStartOffset(), fd.getLength());
-            }
-            else {
+                android.content.res.AssetFileDescriptor fd = this.handler.cordova
+                        .getActivity().getAssets().openFd(f);
+                this.player.setDataSource(fd.getFileDescriptor(),
+                        fd.getStartOffset(), fd.getLength());
+            } else {
                 File fp = new File(file);
                 if (fp.exists()) {
                     FileInputStream fileInputStream = new FileInputStream(file);
                     this.player.setDataSource(fileInputStream.getFD());
                     fileInputStream.close();
-                }
-                else {
-                    this.player.setDataSource(Environment.getExternalStorageDirectory().getPath() + "/" + file);
+                } else {
+                    this.player.setDataSource(Environment
+                            .getExternalStorageDirectory().getPath()
+                            + "/"
+                            + file);
                 }
             }
-                this.setState(STATE.VOICE_STARTING);
-                this.player.setOnPreparedListener(this);
-                this.player.prepare();
+            this.setState(STATE.VOICE_STARTING);
+            this.player.setOnPreparedListener(this);
+            this.player.prepare();
 
-                // Get duration
-                this.duration = getDurationInSeconds();
-            }
+            // Get duration
+            this.duration = getDurationInSeconds();
+        }
     }
 }
