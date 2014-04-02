@@ -38,7 +38,7 @@ var voiceObjects = {};
  *                                  statusCallback(int statusCode) - OPTIONAL
  */
 var Voice = function(src, successCallback, errorCallback, statusCallback) {
-    argscheck.checkArgs('SFFF', 'Media', arguments);
+    argscheck.checkArgs('SFFF', 'Voice', arguments);
     this.id = utils.createUUID();
     voiceObjects[this.id] = this;
     this.src = src;
