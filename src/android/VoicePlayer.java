@@ -157,6 +157,7 @@ public class VoicePlayer implements OnCompletionListener, OnPreparedListener,
             this.recorder.setAudioSource(MediaRecorder.AudioSource.MIC);
             this.recorder.setAudioSamplingRate(8000);
             this.recorder.setAudioChannels(1);
+            //this.recorder.setAudioEncodingBitRate(16);
             this.recorder.setOutputFormat(MediaRecorder.OutputFormat.AMR_NB); // THREE_GPP);
             this.recorder.setAudioEncoder(MediaRecorder.AudioEncoder.AMR_NB); // AMR_NB);
             this.recorder.setOutputFile(this.tempFile);

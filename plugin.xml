@@ -2,6 +2,7 @@
 <plugin id="com.luhuiguo.cordova.voice" version="0.0.1" xmlns="http://apache.org/cordova/ns/plugins/1.0" xmlns:android="http://schemas.android.com/apk/res/android">
     <name>Voice</name>
     <description>Cordova Voice Plugin</description>
+    <author>Lu Huiguo</author>
     <license>Apache 2.0</license>
     <keywords>cordova,media,voice</keywords>
 
@@ -42,8 +43,13 @@
                 <param name="ios-package" value="CDVVoice" />
             </feature>
         </config-file>
+        <header-file src="src/ios/interf_dec.h" />
+        <header-file src="src/ios/interf_enc.h" />
+        <header-file src="src/ios/amrFileCodec.h" />
+        <source-file src="src/ios/amrFileCodec.m" />        
         <header-file src="src/ios/CDVVoice.h" />
         <source-file src="src/ios/CDVVoice.m" />
+        <source-file src="src/ios/libopencore-amrnb.a" framework="true" />
     </platform>
 
 </plugin>

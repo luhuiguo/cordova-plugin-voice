@@ -17,20 +17,22 @@
  under the License.
  */
 
-#import "CDVSound.h"
+#import "CDVVoice.h"
 #import "CDVFile.h"
 #import <Cordova/NSArray+Comparisons.h>
 #import <Cordova/CDVJSON.h>
+#import "amrFileCodec.h"
 
 #define DOCUMENTS_SCHEME_PREFIX @"documents://"
 #define HTTP_SCHEME_PREFIX @"http://"
 #define HTTPS_SCHEME_PREFIX @"https://"
 #define CDVFILE_PREFIX @"cdvfile://"
 #define RECORDING_WAV @"wav"
+#define RECORDING_AMR @"amr"
 
-@implementation CDVSound
+@implementation CDVVoice
 
-@synthesize soundCache, avSession;
+@synthesize voiceCache, avSession;
 
 - (NSURL*)urlForResource:(NSString*)resourcePath
 {
@@ -70,6 +72,30 @@
         }
     }
     return resourceURL;
+}
+
+- (NSString*)filePathForResource:(NSString*)resourcePath
+{
+    NSString* docsPath = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES)[0];
+    NSString* filePath = nil;
+    if ([resourcePath hasPrefix:DOCUMENTS_SCHEME_PREFIX]) {
+       
+        filePath = [resourcePath stringByReplacingOccurrencesOfString:DOCUMENTS_SCHEME_PREFIX withString:[NSString stringWithFormat:@"%@/", docsPath]];
+    }else {
+
+        NSString* tmpPath = [NSTemporaryDirectory() stringByStandardizingPath];
+        BOOL isTmp = [resourcePath rangeOfString:tmpPath].location != NSNotFound;
+        BOOL isDoc = [resourcePath rangeOfString:docsPath].location != NSNotFound;
+        if (!isTmp && !isDoc) {
+            // put in temp dir
+            filePath = [NSString stringWithFormat:@"%@/%@", tmpPath, resourcePath];
+        } else {
+            filePath = resourcePath;
+        }
+    }
+
+    return filePath;
+    
 }
 
 // Maps a url for a resource path for recording
@@ -172,65 +198,79 @@
     return resourceURL;
 }
 
-- (CDVAudioFile*)audioFileForResource:(NSString*)resourcePath withId:(NSString*)mediaId
+- (CDVVoiceFile*)voiceFileForResource:(NSString*)resourcePath withId:(NSString*)voiceId
 {
     // will maintain backwards compatibility with original implementation
-    return [self audioFileForResource:resourcePath withId:mediaId doValidation:YES forRecording:NO];
+    return [self voiceFileForResource:resourcePath withId:voiceId doValidation:YES forRecording:NO];
 }
 
 // Creates or gets the cached audio file resource object
-- (CDVAudioFile*)audioFileForResource:(NSString*)resourcePath withId:(NSString*)mediaId doValidation:(BOOL)bValidate forRecording:(BOOL)bRecord
+- (CDVVoiceFile*)voiceFileForResource:(NSString*)resourcePath withId:(NSString*)voiceId doValidation:(BOOL)bValidate forRecording:(BOOL)bRecord
 {
     BOOL bError = NO;
-    CDVMediaError errcode = MEDIA_ERR_NONE_SUPPORTED;
+    CDVVoiceError errcode = VOICE_ERR_NONE_SUPPORTED;
     NSString* errMsg = @"";
     NSString* jsString = nil;
-    CDVAudioFile* audioFile = nil;
+    CDVVoiceFile* voiceFile = nil;
     NSURL* resourceURL = nil;
 
-    if ([self soundCache] == nil) {
-        [self setSoundCache:[NSMutableDictionary dictionaryWithCapacity:1]];
+    if ([self voiceCache] == nil) {
+        [self setVoiceCache:[NSMutableDictionary dictionaryWithCapacity:1]];
     } else {
-        audioFile = [[self soundCache] objectForKey:mediaId];
+        voiceFile = [[self voiceCache] objectForKey:voiceId];
     }
-    if (audioFile == nil) {
+    if (voiceFile == nil) {
         // validate resourcePath and create
         if ((resourcePath == nil) || ![resourcePath isKindOfClass:[NSString class]] || [resourcePath isEqualToString:@""]) {
             bError = YES;
-            errcode = MEDIA_ERR_ABORTED;
-            errMsg = @"invalid media src argument";
+            errcode = VOICE_ERR_ABORTED;
+            errMsg = @"invalid voice src argument";
         } else {
-            audioFile = [[CDVAudioFile alloc] init];
-            audioFile.resourcePath = resourcePath;
-            audioFile.resourceURL = nil;  // validate resourceURL when actually play or record
-            [[self soundCache] setObject:audioFile forKey:mediaId];
+            voiceFile = [[CDVVoiceFile alloc] init];
+            voiceFile.resourcePath = resourcePath;
+            
+            NSString* temp = [resourcePath stringByDeletingPathExtension];
+            NSString* wavResourcePath = [temp stringByAppendingPathExtension:RECORDING_WAV];
+            NSString* amrResourcePath = [temp stringByAppendingPathExtension:RECORDING_AMR];
+            
+            voiceFile.amrFilePath = [self filePathForResource:amrResourcePath];
+            
+            voiceFile.wavFilePath = [self filePathForResource:wavResourcePath];
+            
+            voiceFile.resourceURL = nil;  // validate resourceURL when actually play or record
+            [[self voiceCache] setObject:voiceFile forKey:voiceId];
         }
     }
-    if (bValidate && (audioFile.resourceURL == nil)) {
+    if (bValidate && (voiceFile.resourceURL == nil)) {
+
+        
         if (bRecord) {
-            resourceURL = [self urlForRecording:resourcePath];
+            resourceURL = [self urlForRecording:voiceFile.wavFilePath];
         } else {
-            resourceURL = [self urlForPlaying:resourcePath];
+            [voiceFile amrToWav];
+            resourceURL = [self urlForPlaying:voiceFile.wavFilePath];
         }
+
+        
         if (resourceURL == nil) {
             bError = YES;
-            errcode = MEDIA_ERR_ABORTED;
-            errMsg = [NSString stringWithFormat:@"Cannot use audio file from resource '%@'", resourcePath];
+            errcode = VOICE_ERR_ABORTED;
+            errMsg = [NSString stringWithFormat:@"Cannot use voice file from resource '%@'", resourcePath];
         } else {
-            audioFile.resourceURL = resourceURL;
+            voiceFile.resourceURL = resourceURL;
         }
     }
 
     if (bError) {
-        jsString = [NSString stringWithFormat:@"%@(\"%@\",%d,%@);", @"cordova.require('org.apache.cordova.media.Media').onStatus", mediaId, MEDIA_ERROR, [self createMediaErrorWithCode:errcode message:errMsg]];
+        jsString = [NSString stringWithFormat:@"%@(\"%@\",%d,%@);", @"cordova.require('com.luhuiguo.cordova.voice.Voice').onStatus", voiceId, VOICE_ERROR, [self createVoiceErrorWithCode:errcode message:errMsg]];
         [self.commandDelegate evalJs:jsString];
     }
 
-    return audioFile;
+    return voiceFile;
 }
 
 // returns whether or not audioSession is available - creates it if necessary
-- (BOOL)hasAudioSession
+- (BOOL)hasSession
 {
     BOOL bSession = YES;
 
@@ -249,25 +289,25 @@
 }
 
 // helper function to create a error object string
-- (NSString*)createMediaErrorWithCode:(CDVMediaError)code message:(NSString*)message
+- (NSString*)createVoiceErrorWithCode:(CDVVoiceError)code message:(NSString*)message
 {
     NSMutableDictionary* errorDict = [NSMutableDictionary dictionaryWithCapacity:2];
 
-    [errorDict setObject:[NSNumber numberWithUnsignedInt:code] forKey:@"code"];
+    [errorDict setObject:[NSNumber numberWithUnsignedInteger:code] forKey:@"code"];
     [errorDict setObject:message ? message:@"" forKey:@"message"];
     return [errorDict JSONString];
 }
 
 - (void)create:(CDVInvokedUrlCommand*)command
 {
-    NSString* mediaId = [command.arguments objectAtIndex:0];
+    NSString* voiceId = [command.arguments objectAtIndex:0];
     NSString* resourcePath = [command.arguments objectAtIndex:1];
 
-    CDVAudioFile* audioFile = [self audioFileForResource:resourcePath withId:mediaId doValidation:NO forRecording:NO];
+    CDVVoiceFile* voiceFile = [self voiceFileForResource:resourcePath withId:voiceId doValidation:NO forRecording:NO];
 
-    if (audioFile == nil) {
+    if (voiceFile == nil) {
         NSString* errorMessage = [NSString stringWithFormat:@"Failed to initialize Media file with path %@", resourcePath];
-        NSString* jsString = [NSString stringWithFormat:@"%@(\"%@\",%d,%@);", @"cordova.require('org.apache.cordova.media.Media').onStatus", mediaId, MEDIA_ERROR, [self createMediaErrorWithCode:MEDIA_ERR_ABORTED message:errorMessage]];
+        NSString* jsString = [NSString stringWithFormat:@"%@(\"%@\",%d,%@);", @"cordova.require('com.luhuiguo.cordova.voice.Voice').onStatus", voiceId, VOICE_ERROR, [self createVoiceErrorWithCode:VOICE_ERR_ABORTED message:errorMessage]];
         [self.commandDelegate evalJs:jsString];
     } else {
         CDVPluginResult* result = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK];
@@ -280,44 +320,44 @@
     NSString* callbackId = command.callbackId;
 
 #pragma unused(callbackId)
-    NSString* mediaId = [command.arguments objectAtIndex:0];
+    NSString* voiceId = [command.arguments objectAtIndex:0];
     NSNumber* volume = [command.arguments objectAtIndex:1 withDefault:[NSNumber numberWithFloat:1.0]];
 
-    if ([self soundCache] != nil) {
-        CDVAudioFile* audioFile = [[self soundCache] objectForKey:mediaId];
-        if (audioFile != nil) {
-            audioFile.volume = volume;
-            if (audioFile.player) {
-                audioFile.player.volume = [volume floatValue];
+    if ([self voiceCache] != nil) {
+        CDVVoiceFile* voiceFile = [[self voiceCache] objectForKey:voiceId];
+        if (voiceFile != nil) {
+            voiceFile.volume = volume;
+            if (voiceFile.player) {
+                voiceFile.player.volume = [volume floatValue];
             }
-            [[self soundCache] setObject:audioFile forKey:mediaId];
+            [[self voiceCache] setObject:voiceFile forKey:voiceId];
         }
     }
 
     // don't care for any callbacks
 }
 
-- (void)startPlayingAudio:(CDVInvokedUrlCommand*)command
+- (void)startPlaying:(CDVInvokedUrlCommand*)command
 {
     NSString* callbackId = command.callbackId;
 
 #pragma unused(callbackId)
-    NSString* mediaId = [command.arguments objectAtIndex:0];
+    NSString* voiceId = [command.arguments objectAtIndex:0];
     NSString* resourcePath = [command.arguments objectAtIndex:1];
     NSDictionary* options = [command.arguments objectAtIndex:2 withDefault:nil];
 
     BOOL bError = NO;
     NSString* jsString = nil;
 
-    CDVAudioFile* audioFile = [self audioFileForResource:resourcePath withId:mediaId doValidation:YES forRecording:NO];
-    if ((audioFile != nil) && (audioFile.resourceURL != nil)) {
-        if (audioFile.player == nil) {
-            bError = [self prepareToPlay:audioFile withId:mediaId];
+    CDVVoiceFile* voiceFile = [self voiceFileForResource:resourcePath withId:voiceId doValidation:YES forRecording:NO];
+    if ((voiceFile != nil) && (voiceFile.resourceURL != nil)) {
+        if (voiceFile.player == nil) {
+            bError = [self prepareToPlay:voiceFile withId:voiceId];
         }
         if (!bError) {
-            // audioFile.player != nil  or player was successfully created
+            // voiceFile.player != nil  or player was successfully created
             // get the audioSession and set the category to allow Playing when device is locked or ring/silent switch engaged
-            if ([self hasAudioSession]) {
+            if ([self hasSession]) {
                 NSError* __autoreleasing err = nil;
                 NSNumber* playAudioWhenScreenIsLocked = [options objectForKey:@"playAudioWhenScreenIsLocked"];
                 BOOL bPlayAudioWhenScreenIsLocked = YES;
@@ -334,24 +374,24 @@
                 }
             }
             if (!bError) {
-                NSLog(@"Playing audio sample '%@'", audioFile.resourcePath);
+                NSLog(@"Playing audio sample '%@'", voiceFile.resourcePath);
                 NSNumber* loopOption = [options objectForKey:@"numberOfLoops"];
                 NSInteger numberOfLoops = 0;
                 if (loopOption != nil) {
                     numberOfLoops = [loopOption intValue] - 1;
                 }
-                audioFile.player.numberOfLoops = numberOfLoops;
-                if (audioFile.player.isPlaying) {
-                    [audioFile.player stop];
-                    audioFile.player.currentTime = 0;
+                voiceFile.player.numberOfLoops = numberOfLoops;
+                if (voiceFile.player.isPlaying) {
+                    [voiceFile.player stop];
+                    voiceFile.player.currentTime = 0;
                 }
-                if (audioFile.volume != nil) {
-                    audioFile.player.volume = [audioFile.volume floatValue];
+                if (voiceFile.volume != nil) {
+                    voiceFile.player.volume = [voiceFile.volume floatValue];
                 }
 
-                [audioFile.player play];
-                double position = round(audioFile.player.duration * 1000) / 1000;
-                jsString = [NSString stringWithFormat:@"%@(\"%@\",%d,%.3f);\n%@(\"%@\",%d,%d);", @"cordova.require('org.apache.cordova.media.Media').onStatus", mediaId, MEDIA_DURATION, position, @"cordova.require('org.apache.cordova.media.Media').onStatus", mediaId, MEDIA_STATE, MEDIA_RUNNING];
+                [voiceFile.player play];
+                double position = round(voiceFile.player.duration * 1000) / 1000;
+                jsString = [NSString stringWithFormat:@"%@(\"%@\",%d,%.3f);\n%@(\"%@\",%d,%d);", @"cordova.require('com.luhuiguo.cordova.voice.Voice').onStatus", voiceId, VOICE_DURATION, position, @"cordova.require('com.luhuiguo.cordova.voice.Voice').onStatus", voiceId, VOICE_STATE, VOICE_RUNNING];
                 [self.commandDelegate evalJs:jsString];
             }
         }
@@ -359,35 +399,35 @@
             /*  I don't see a problem playing previously recorded audio so removing this section - BG
             NSError* error;
             // try loading it one more time, in case the file was recorded previously
-            audioFile.player = [[ AVAudioPlayer alloc ] initWithContentsOfURL:audioFile.resourceURL error:&error];
+            voiceFile.player = [[ AVAudioPlayer alloc ] initWithContentsOfURL:voiceFile.resourceURL error:&error];
             if (error != nil) {
                 NSLog(@"Failed to initialize AVAudioPlayer: %@\n", error);
-                audioFile.player = nil;
+                voiceFile.player = nil;
             } else {
-                NSLog(@"Playing audio sample '%@'", audioFile.resourcePath);
-                audioFile.player.numberOfLoops = numberOfLoops;
-                [audioFile.player play];
+                NSLog(@"Playing audio sample '%@'", voiceFile.resourcePath);
+                voiceFile.player.numberOfLoops = numberOfLoops;
+                [voiceFile.player play];
             } */
             // error creating the session or player
-            // jsString = [NSString stringWithFormat: @"%@(\"%@\",%d,%d);", @"cordova.require('org.apache.cordova.media.Media').onStatus", mediaId, MEDIA_ERROR,  MEDIA_ERR_NONE_SUPPORTED];
-            jsString = [NSString stringWithFormat:@"%@(\"%@\",%d,%@);", @"cordova.require('org.apache.cordova.media.Media').onStatus", mediaId, MEDIA_ERROR, [self createMediaErrorWithCode:MEDIA_ERR_NONE_SUPPORTED message:nil]];
+            // jsString = [NSString stringWithFormat: @"%@(\"%@\",%d,%d);", @"cordova.require('com.luhuiguo.cordova.voice.Voice').onStatus", voiceId, VOICE_ERROR,  VOICE_ERR_NONE_SUPPORTED];
+            jsString = [NSString stringWithFormat:@"%@(\"%@\",%d,%@);", @"cordova.require('com.luhuiguo.cordova.voice.Voice').onStatus", voiceId, VOICE_ERROR, [self createVoiceErrorWithCode:VOICE_ERR_NONE_SUPPORTED message:nil]];
             [self.commandDelegate evalJs:jsString];
         }
     }
-    // else audioFile was nil - error already returned from audioFile for resource
+    // else voiceFile was nil - error already returned from voiceFile for resource
     return;
 }
 
-- (BOOL)prepareToPlay:(CDVAudioFile*)audioFile withId:(NSString*)mediaId
+- (BOOL)prepareToPlay:(CDVVoiceFile*)voiceFile withId:(NSString*)voiceId
 {
     BOOL bError = NO;
     NSError* __autoreleasing playerError = nil;
 
     // create the player
-    NSURL* resourceURL = audioFile.resourceURL;
+    NSURL* resourceURL = voiceFile.resourceURL;
 
     if ([resourceURL isFileURL]) {
-        audioFile.player = [[CDVAudioPlayer alloc] initWithContentsOfURL:resourceURL error:&playerError];
+        voiceFile.player = [[CDVVoicePlayer alloc] initWithContentsOfURL:resourceURL error:&playerError];
     } else {
         NSMutableURLRequest* request = [NSMutableURLRequest requestWithURL:resourceURL];
         NSString* userAgent = [self.commandDelegate userAgent];
@@ -409,52 +449,52 @@
 
             [data writeToFile:filePath atomically:YES];
             NSURL* fileURL = [NSURL fileURLWithPath:filePath];
-            audioFile.player = [[CDVAudioPlayer alloc] initWithContentsOfURL:fileURL error:&playerError];
+            voiceFile.player = [[CDVVoicePlayer alloc] initWithContentsOfURL:fileURL error:&playerError];
         }
     }
 
     if (playerError != nil) {
         NSLog(@"Failed to initialize AVAudioPlayer: %@\n", [playerError localizedDescription]);
-        audioFile.player = nil;
+        voiceFile.player = nil;
         if (self.avSession) {
             [self.avSession setActive:NO error:nil];
         }
         bError = YES;
     } else {
-        audioFile.player.mediaId = mediaId;
-        audioFile.player.delegate = self;
-        bError = ![audioFile.player prepareToPlay];
+        voiceFile.player.voiceId = voiceId;
+        voiceFile.player.delegate = self;
+        bError = ![voiceFile.player prepareToPlay];
     }
     return bError;
 }
 
-- (void)stopPlayingAudio:(CDVInvokedUrlCommand*)command
+- (void)stopPlaying:(CDVInvokedUrlCommand*)command
 {
-    NSString* mediaId = [command.arguments objectAtIndex:0];
-    CDVAudioFile* audioFile = [[self soundCache] objectForKey:mediaId];
+    NSString* voiceId = [command.arguments objectAtIndex:0];
+    CDVVoiceFile* voiceFile = [[self voiceCache] objectForKey:voiceId];
     NSString* jsString = nil;
 
-    if ((audioFile != nil) && (audioFile.player != nil)) {
-        NSLog(@"Stopped playing audio sample '%@'", audioFile.resourcePath);
-        [audioFile.player stop];
-        audioFile.player.currentTime = 0;
-        jsString = [NSString stringWithFormat:@"%@(\"%@\",%d,%d);", @"cordova.require('org.apache.cordova.media.Media').onStatus", mediaId, MEDIA_STATE, MEDIA_STOPPED];
+    if ((voiceFile != nil) && (voiceFile.player != nil)) {
+        NSLog(@"Stopped playing voice '%@'", voiceFile.resourcePath);
+        [voiceFile.player stop];
+        voiceFile.player.currentTime = 0;
+        jsString = [NSString stringWithFormat:@"%@(\"%@\",%d,%d);", @"cordova.require('com.luhuiguo.cordova.voice.Voice').onStatus", voiceId, VOICE_STATE, VOICE_STOPPED];
     }  // ignore if no media playing
     if (jsString) {
         [self.commandDelegate evalJs:jsString];
     }
 }
 
-- (void)pausePlayingAudio:(CDVInvokedUrlCommand*)command
+- (void)pausePlaying:(CDVInvokedUrlCommand*)command
 {
-    NSString* mediaId = [command.arguments objectAtIndex:0];
+    NSString* voiceId = [command.arguments objectAtIndex:0];
     NSString* jsString = nil;
-    CDVAudioFile* audioFile = [[self soundCache] objectForKey:mediaId];
+    CDVVoiceFile* voiceFile = [[self voiceCache] objectForKey:voiceId];
 
-    if ((audioFile != nil) && (audioFile.player != nil)) {
-        NSLog(@"Paused playing audio sample '%@'", audioFile.resourcePath);
-        [audioFile.player pause];
-        jsString = [NSString stringWithFormat:@"%@(\"%@\",%d,%d);", @"cordova.require('org.apache.cordova.media.Media').onStatus", mediaId, MEDIA_STATE, MEDIA_PAUSED];
+    if ((voiceFile != nil) && (voiceFile.player != nil)) {
+        NSLog(@"Paused playing voice '%@'", voiceFile.resourcePath);
+        [voiceFile.player pause];
+        jsString = [NSString stringWithFormat:@"%@(\"%@\",%d,%d);", @"cordova.require('com.luhuiguo.cordova.voice.Voice').onStatus", voiceId, VOICE_STATE, VOICE_PAUSED];
     }
     // ignore if no media playing
 
@@ -463,30 +503,30 @@
     }
 }
 
-- (void)seekToAudio:(CDVInvokedUrlCommand*)command
+- (void)seekTo:(CDVInvokedUrlCommand*)command
 {
     // args:
     // 0 = Media id
     // 1 = path to resource
     // 2 = seek to location in milliseconds
 
-    NSString* mediaId = [command.arguments objectAtIndex:0];
+    NSString* voiceId = [command.arguments objectAtIndex:0];
 
-    CDVAudioFile* audioFile = [[self soundCache] objectForKey:mediaId];
+    CDVVoiceFile* voiceFile = [[self voiceCache] objectForKey:voiceId];
     double position = [[command.arguments objectAtIndex:1] doubleValue];
 
-    if ((audioFile != nil) && (audioFile.player != nil)) {
+    if ((voiceFile != nil) && (voiceFile.player != nil)) {
         NSString* jsString;
         double posInSeconds = position / 1000;
-        if (posInSeconds >= audioFile.player.duration) {
+        if (posInSeconds >= voiceFile.player.duration) {
             // The seek is past the end of file.  Stop media and reset to beginning instead of seeking past the end.
-            [audioFile.player stop];
-            audioFile.player.currentTime = 0;
-            jsString = [NSString stringWithFormat:@"%@(\"%@\",%d,%.3f);\n%@(\"%@\",%d,%d);", @"cordova.require('org.apache.cordova.media.Media').onStatus", mediaId, MEDIA_POSITION, 0.0, @"cordova.require('org.apache.cordova.media.Media').onStatus", mediaId, MEDIA_STATE, MEDIA_STOPPED];
+            [voiceFile.player stop];
+            voiceFile.player.currentTime = 0;
+            jsString = [NSString stringWithFormat:@"%@(\"%@\",%d,%.3f);\n%@(\"%@\",%d,%d);", @"cordova.require('com.luhuiguo.cordova.voice.Voice').onStatus", voiceId, VOICE_POSITION, 0.0, @"cordova.require('com.luhuiguo.cordova.voice.Voice').onStatus", voiceId, VOICE_STATE, VOICE_STOPPED];
             // NSLog(@"seekToEndJsString=%@",jsString);
         } else {
-            audioFile.player.currentTime = posInSeconds;
-            jsString = [NSString stringWithFormat:@"%@(\"%@\",%d,%f);", @"cordova.require('org.apache.cordova.media.Media').onStatus", mediaId, MEDIA_POSITION, posInSeconds];
+            voiceFile.player.currentTime = posInSeconds;
+            jsString = [NSString stringWithFormat:@"%@(\"%@\",%d,%f);", @"cordova.require('com.luhuiguo.cordova.voice.Voice').onStatus", voiceId, VOICE_POSITION, posInSeconds];
             // NSLog(@"seekJsString=%@",jsString);
         }
 
@@ -496,87 +536,106 @@
 
 - (void)release:(CDVInvokedUrlCommand*)command
 {
-    NSString* mediaId = [command.arguments objectAtIndex:0];
+    NSString* voiceId = [command.arguments objectAtIndex:0];
 
-    if (mediaId != nil) {
-        CDVAudioFile* audioFile = [[self soundCache] objectForKey:mediaId];
-        if (audioFile != nil) {
-            if (audioFile.player && [audioFile.player isPlaying]) {
-                [audioFile.player stop];
+    if (voiceId != nil) {
+        CDVVoiceFile* voiceFile = [[self voiceCache] objectForKey:voiceId];
+        if (voiceFile != nil) {
+            if (voiceFile.player && [voiceFile.player isPlaying]) {
+                [voiceFile.player stop];
             }
-            if (audioFile.recorder && [audioFile.recorder isRecording]) {
-                [audioFile.recorder stop];
+            if (voiceFile.recorder && [voiceFile.recorder isRecording]) {
+                [voiceFile.recorder stop];
             }
             if (self.avSession) {
                 [self.avSession setActive:NO error:nil];
                 self.avSession = nil;
             }
-            [[self soundCache] removeObjectForKey:mediaId];
-            NSLog(@"Media with id %@ released", mediaId);
+            [[self voiceCache] removeObjectForKey:voiceId];
+            NSLog(@"Voice with id %@ released", voiceId);
         }
     }
 }
 
-- (void)getCurrentPositionAudio:(CDVInvokedUrlCommand*)command
+- (void)getCurrentPosition:(CDVInvokedUrlCommand*)command
 {
     NSString* callbackId = command.callbackId;
-    NSString* mediaId = [command.arguments objectAtIndex:0];
+    NSString* voiceId = [command.arguments objectAtIndex:0];
 
-#pragma unused(mediaId)
-    CDVAudioFile* audioFile = [[self soundCache] objectForKey:mediaId];
+#pragma unused(voiceId)
+    CDVVoiceFile* voiceFile = [[self voiceCache] objectForKey:voiceId];
     double position = -1;
 
-    if ((audioFile != nil) && (audioFile.player != nil) && [audioFile.player isPlaying]) {
-        position = round(audioFile.player.currentTime * 1000) / 1000;
+    if ((voiceFile != nil) && (voiceFile.player != nil) && [voiceFile.player isPlaying]) {
+        position = round(voiceFile.player.currentTime * 1000) / 1000;
     }
     CDVPluginResult* result = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsDouble:position];
-    NSString* jsString = [NSString stringWithFormat:@"%@(\"%@\",%d,%.3f);\n%@", @"cordova.require('org.apache.cordova.media.Media').onStatus", mediaId, MEDIA_POSITION, position, [result toSuccessCallbackString:callbackId]];
+    NSString* jsString = [NSString stringWithFormat:@"%@(\"%@\",%d,%.3f);\n%@", @"cordova.require('com.luhuiguo.cordova.voice.Voice').onStatus", voiceId, VOICE_POSITION, position, [result toSuccessCallbackString:callbackId]];
     [self.commandDelegate evalJs:jsString];
 }
 
-- (void)startRecordingAudio:(CDVInvokedUrlCommand*)command
+- (void)getPower:(CDVInvokedUrlCommand *)command
+{
+    NSString* callbackId = command.callbackId;
+    NSString* voiceId = [command.arguments objectAtIndex:0];
+    
+#pragma unused(voiceId)
+    CDVVoiceFile* voiceFile = [[self voiceCache] objectForKey:voiceId];
+    double power = -1;
+    
+    if ((voiceFile != nil) && (voiceFile.recorder != nil) && [voiceFile.recorder isRecording]) {
+        
+        power  = pow(10, (0.05 * [voiceFile.recorder peakPowerForChannel:0]));
+    }
+    CDVPluginResult* result = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsDouble:power];
+    NSString* jsString = [NSString stringWithFormat:@"%@(\"%@\",%d,%.3f);\n%@", @"cordova.require('com.luhuiguo.cordova.voice.Voice').onStatus", voiceId, VOICE_POWER, power, [result toSuccessCallbackString:callbackId]];
+    [self.commandDelegate evalJs:jsString];
+}
+
+
+- (void)startRecording:(CDVInvokedUrlCommand*)command
 {
     NSString* callbackId = command.callbackId;
 
 #pragma unused(callbackId)
 
-    NSString* mediaId = [command.arguments objectAtIndex:0];
-    CDVAudioFile* audioFile = [self audioFileForResource:[command.arguments objectAtIndex:1] withId:mediaId doValidation:YES forRecording:YES];
+    NSString* voiceId = [command.arguments objectAtIndex:0];
+    CDVVoiceFile* voiceFile = [self voiceFileForResource:[command.arguments objectAtIndex:1] withId:voiceId doValidation:YES forRecording:YES];
     __block NSString* jsString = nil;
     __block NSString* errorMsg = @"";
 
-    if ((audioFile != nil) && (audioFile.resourceURL != nil)) {
+    if ((voiceFile != nil) && (voiceFile.resourceURL != nil)) {
         void (^startRecording)(void) = ^{
             NSError* __autoreleasing error = nil;
             
-            if (audioFile.recorder != nil) {
-                [audioFile.recorder stop];
-                audioFile.recorder = nil;
+            if (voiceFile.recorder != nil) {
+                [voiceFile.recorder stop];
+                voiceFile.recorder = nil;
             }
             // get the audioSession and set the category to allow recording when device is locked or ring/silent switch engaged
-            if ([self hasAudioSession]) {
+            if ([self hasSession]) {
                 [self.avSession setCategory:AVAudioSessionCategoryRecord error:nil];
                 if (![self.avSession setActive:YES error:&error]) {
                     // other audio with higher priority that does not allow mixing could cause this to fail
-                    errorMsg = [NSString stringWithFormat:@"Unable to record audio: %@", [error localizedFailureReason]];
-                    // jsString = [NSString stringWithFormat: @"%@(\"%@\",%d,%d);", @"cordova.require('org.apache.cordova.media.Media').onStatus", mediaId, MEDIA_ERROR, MEDIA_ERR_ABORTED];
-                    jsString = [NSString stringWithFormat:@"%@(\"%@\",%d,%@);", @"cordova.require('org.apache.cordova.media.Media').onStatus", mediaId, MEDIA_ERROR, [self createMediaErrorWithCode:MEDIA_ERR_ABORTED message:errorMsg]];
+                    errorMsg = [NSString stringWithFormat:@"Unable to record voice: %@", [error localizedFailureReason]];
+                    // jsString = [NSString stringWithFormat: @"%@(\"%@\",%d,%d);", @"cordova.require('com.luhuiguo.cordova.voice.Voice').onStatus", voiceId, VOICE_ERROR, VOICE_ERR_ABORTED];
+                    jsString = [NSString stringWithFormat:@"%@(\"%@\",%d,%@);", @"cordova.require('com.luhuiguo.cordova.voice.Voice').onStatus", voiceId, VOICE_ERROR, [self createVoiceErrorWithCode:VOICE_ERR_ABORTED message:errorMsg]];
                     [self.commandDelegate evalJs:jsString];
                     return;
                 }
             }
             
             // create a new recorder for each start record
-            audioFile.recorder = [[CDVAudioRecorder alloc] initWithURL:audioFile.resourceURL settings:nil error:&error];
+            voiceFile.recorder = [[CDVVoiceRecorder alloc] initWithURL:voiceFile.resourceURL settings:[CDVVoice getRecorderSettings] error:&error];
             
             bool recordingSuccess = NO;
             if (error == nil) {
-                audioFile.recorder.delegate = self;
-                audioFile.recorder.mediaId = mediaId;
-                recordingSuccess = [audioFile.recorder record];
+                voiceFile.recorder.delegate = self;
+                voiceFile.recorder.voiceId = voiceId;
+                recordingSuccess = [voiceFile.recorder record];
                 if (recordingSuccess) {
-                    NSLog(@"Started recording audio sample '%@'", audioFile.resourcePath);
-                    jsString = [NSString stringWithFormat:@"%@(\"%@\",%d,%d);", @"cordova.require('org.apache.cordova.media.Media').onStatus", mediaId, MEDIA_STATE, MEDIA_RUNNING];
+                    NSLog(@"Started recording audio sample '%@'", voiceFile.resourcePath);
+                    jsString = [NSString stringWithFormat:@"%@(\"%@\",%d,%d);", @"cordova.require('com.luhuiguo.cordova.voice.Voice').onStatus", voiceId, VOICE_STATE, VOICE_RUNNING];
                     [self.commandDelegate evalJs:jsString];
                 }
             }
@@ -587,17 +646,17 @@
                 } else {
                     errorMsg = @"Failed to start recording using AVAudioRecorder";
                 }
-                audioFile.recorder = nil;
+                voiceFile.recorder = nil;
                 if (self.avSession) {
                     [self.avSession setActive:NO error:nil];
                 }
-                jsString = [NSString stringWithFormat:@"%@(\"%@\",%d,%@);", @"cordova.require('org.apache.cordova.media.Media').onStatus", mediaId, MEDIA_ERROR, [self createMediaErrorWithCode:MEDIA_ERR_ABORTED message:errorMsg]];
+                jsString = [NSString stringWithFormat:@"%@(\"%@\",%d,%@);", @"cordova.require('com.luhuiguo.cordova.voice.Voice').onStatus", voiceId, VOICE_ERROR, [self createVoiceErrorWithCode:VOICE_ERR_ABORTED message:errorMsg]];
                 [self.commandDelegate evalJs:jsString];
             }
         };
         
         SEL rrpSel = NSSelectorFromString(@"requestRecordPermission:");
-        if ([self hasAudioSession] && [self.avSession respondsToSelector:rrpSel])
+        if ([self hasSession] && [self.avSession respondsToSelector:rrpSel])
         {
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Warc-performSelector-leaks"
@@ -607,11 +666,11 @@
                 } else {
                     NSString* msg = @"Error creating audio session, microphone permission denied.";
                     NSLog(@"%@", msg);
-                    audioFile.recorder = nil;
+                    voiceFile.recorder = nil;
                     if (self.avSession) {
                         [self.avSession setActive:NO error:nil];
                     }
-                    jsString = [NSString stringWithFormat:@"%@(\"%@\",%d,%@);", @"cordova.require('org.apache.cordova.media.Media').onStatus", mediaId, MEDIA_ERROR, [self createMediaErrorWithCode:MEDIA_ERR_ABORTED message:msg]];
+                    jsString = [NSString stringWithFormat:@"%@(\"%@\",%d,%@);", @"cordova.require('com.luhuiguo.cordova.voice.Voice').onStatus", voiceId, VOICE_ERROR, [self createVoiceErrorWithCode:VOICE_ERR_ABORTED message:msg]];
                     [self.commandDelegate evalJs:jsString];
                 }
             }];
@@ -622,22 +681,25 @@
         
     } else {
         // file did not validate
-        NSString* errorMsg = [NSString stringWithFormat:@"Could not record audio at '%@'", audioFile.resourcePath];
-        jsString = [NSString stringWithFormat:@"%@(\"%@\",%d,%@);", @"cordova.require('org.apache.cordova.media.Media').onStatus", mediaId, MEDIA_ERROR, [self createMediaErrorWithCode:MEDIA_ERR_ABORTED message:errorMsg]];
+        NSString* errorMsg = [NSString stringWithFormat:@"Could not record audio at '%@'", voiceFile.resourcePath];
+        jsString = [NSString stringWithFormat:@"%@(\"%@\",%d,%@);", @"cordova.require('com.luhuiguo.cordova.voice.Voice').onStatus", voiceId, VOICE_ERROR, [self createVoiceErrorWithCode:VOICE_ERR_ABORTED message:errorMsg]];
         [self.commandDelegate evalJs:jsString];
     }
 }
 
-- (void)stopRecordingAudio:(CDVInvokedUrlCommand*)command
+- (void)stopRecording:(CDVInvokedUrlCommand*)command
 {
-    NSString* mediaId = [command.arguments objectAtIndex:0];
+    NSString* voiceId = [command.arguments objectAtIndex:0];
 
-    CDVAudioFile* audioFile = [[self soundCache] objectForKey:mediaId];
+    CDVVoiceFile* voiceFile = [[self voiceCache] objectForKey:voiceId];
+    
+    
     NSString* jsString = nil;
 
-    if ((audioFile != nil) && (audioFile.recorder != nil)) {
-        NSLog(@"Stopped recording audio sample '%@'", audioFile.resourcePath);
-        [audioFile.recorder stop];
+    if ((voiceFile != nil) && (voiceFile.recorder != nil)) {
+        NSLog(@"Stopped recording voice '%@'", voiceFile.resourcePath);
+        [voiceFile.recorder stop];
+        [voiceFile wavToAmr];
         // no callback - that will happen in audioRecorderDidFinishRecording
     }
     // ignore if no media recording
@@ -648,19 +710,22 @@
 
 - (void)audioRecorderDidFinishRecording:(AVAudioRecorder*)recorder successfully:(BOOL)flag
 {
-    CDVAudioRecorder* aRecorder = (CDVAudioRecorder*)recorder;
-    NSString* mediaId = aRecorder.mediaId;
-    CDVAudioFile* audioFile = [[self soundCache] objectForKey:mediaId];
+    NSLog(@"audioRecorderDidFinishRecording");
+    
+    CDVVoiceRecorder* aRecorder = (CDVVoiceRecorder*)recorder;
+    NSString* voiceId = aRecorder.voiceId;
+    CDVVoiceFile* voiceFile = [[self voiceCache] objectForKey:voiceId];
     NSString* jsString = nil;
 
-    if (audioFile != nil) {
-        NSLog(@"Finished recording audio sample '%@'", audioFile.resourcePath);
+    if (voiceFile != nil) {
+        NSLog(@"Finished recording voice '%@'", voiceFile.resourcePath);
     }
     if (flag) {
-        jsString = [NSString stringWithFormat:@"%@(\"%@\",%d,%d);", @"cordova.require('org.apache.cordova.media.Media').onStatus", mediaId, MEDIA_STATE, MEDIA_STOPPED];
+
+        jsString = [NSString stringWithFormat:@"%@(\"%@\",%d,%d);", @"cordova.require('com.luhuiguo.cordova.voice.Voice').onStatus", voiceId, VOICE_STATE, VOICE_STOPPED];
     } else {
-        // jsString = [NSString stringWithFormat: @"%@(\"%@\",%d,%d);", @"cordova.require('org.apache.cordova.media.Media').onStatus", mediaId, MEDIA_ERROR, MEDIA_ERR_DECODE];
-        jsString = [NSString stringWithFormat:@"%@(\"%@\",%d,%@);", @"cordova.require('org.apache.cordova.media.Media').onStatus", mediaId, MEDIA_ERROR, [self createMediaErrorWithCode:MEDIA_ERR_DECODE message:nil]];
+        // jsString = [NSString stringWithFormat: @"%@(\"%@\",%d,%d);", @"cordova.require('com.luhuiguo.cordova.voice.Voice').onStatus", voiceId, VOICE_ERROR, VOICE_ERR_DECODE];
+        jsString = [NSString stringWithFormat:@"%@(\"%@\",%d,%@);", @"cordova.require('com.luhuiguo.cordova.voice.Voice').onStatus", voiceId, VOICE_ERROR, [self createVoiceErrorWithCode:VOICE_ERR_DECODE message:nil]];
     }
     if (self.avSession) {
         [self.avSession setActive:NO error:nil];
@@ -670,20 +735,20 @@
 
 - (void)audioPlayerDidFinishPlaying:(AVAudioPlayer*)player successfully:(BOOL)flag
 {
-    CDVAudioPlayer* aPlayer = (CDVAudioPlayer*)player;
-    NSString* mediaId = aPlayer.mediaId;
-    CDVAudioFile* audioFile = [[self soundCache] objectForKey:mediaId];
+    CDVVoicePlayer* aPlayer = (CDVVoicePlayer*)player;
+    NSString* voiceId = aPlayer.voiceId;
+    CDVVoiceFile* voiceFile = [[self voiceCache] objectForKey:voiceId];
     NSString* jsString = nil;
 
-    if (audioFile != nil) {
-        NSLog(@"Finished playing audio sample '%@'", audioFile.resourcePath);
+    if (voiceFile != nil) {
+        NSLog(@"Finished playing voice '%@'", voiceFile.resourcePath);
     }
     if (flag) {
-        audioFile.player.currentTime = 0;
-        jsString = [NSString stringWithFormat:@"%@(\"%@\",%d,%d);", @"cordova.require('org.apache.cordova.media.Media').onStatus", mediaId, MEDIA_STATE, MEDIA_STOPPED];
+        voiceFile.player.currentTime = 0;
+        jsString = [NSString stringWithFormat:@"%@(\"%@\",%d,%d);", @"cordova.require('com.luhuiguo.cordova.voice.Voice').onStatus", voiceId, VOICE_STATE, VOICE_STOPPED];
     } else {
-        // jsString = [NSString stringWithFormat: @"%@(\"%@\",%d,%d);", @"cordova.require('org.apache.cordova.media.Media').onStatus", mediaId, MEDIA_ERROR, MEDIA_ERR_DECODE];
-        jsString = [NSString stringWithFormat:@"%@(\"%@\",%d,%@);", @"cordova.require('org.apache.cordova.media.Media').onStatus", mediaId, MEDIA_ERROR, [self createMediaErrorWithCode:MEDIA_ERR_DECODE message:nil]];
+        // jsString = [NSString stringWithFormat: @"%@(\"%@\",%d,%d);", @"cordova.require('com.luhuiguo.cordova.voice.Voice').onStatus", voiceId, VOICE_ERROR, VOICE_ERR_DECODE];
+        jsString = [NSString stringWithFormat:@"%@(\"%@\",%d,%@);", @"cordova.require('com.luhuiguo.cordova.voice.Voice').onStatus", voiceId, VOICE_ERROR, [self createVoiceErrorWithCode:VOICE_ERR_DECODE message:nil]];
     }
     if (self.avSession) {
         [self.avSession setActive:NO error:nil];
@@ -693,8 +758,8 @@
 
 - (void)onMemoryWarning
 {
-    [[self soundCache] removeAllObjects];
-    [self setSoundCache:nil];
+    [[self voiceCache] removeAllObjects];
+    [self setVoiceCache:nil];
     [self setAvSession:nil];
 
     [super onMemoryWarning];
@@ -702,42 +767,73 @@
 
 - (void)dealloc
 {
-    [[self soundCache] removeAllObjects];
+    [[self voiceCache] removeAllObjects];
 }
 
 - (void)onReset
 {
-    for (CDVAudioFile* audioFile in [[self soundCache] allValues]) {
-        if (audioFile != nil) {
-            if (audioFile.player != nil) {
-                [audioFile.player stop];
-                audioFile.player.currentTime = 0;
+    for (CDVVoiceFile* voiceFile in [[self voiceCache] allValues]) {
+        if (voiceFile != nil) {
+            if (voiceFile.player != nil) {
+                [voiceFile.player stop];
+                voiceFile.player.currentTime = 0;
             }
-            if (audioFile.recorder != nil) {
-                [audioFile.recorder stop];
+            if (voiceFile.recorder != nil) {
+                [voiceFile.recorder stop];
             }
         }
     }
 
-    [[self soundCache] removeAllObjects];
+    [[self voiceCache] removeAllObjects];
 }
+
++ (NSDictionary*)getRecorderSettings
+{
+    NSDictionary *settings = [[NSDictionary alloc] initWithObjectsAndKeys:
+                                   [NSNumber numberWithFloat: 8000.0],AVSampleRateKey, //采样率
+                                   [NSNumber numberWithInt: kAudioFormatLinearPCM],AVFormatIDKey,
+                                   [NSNumber numberWithInt:16],AVLinearPCMBitDepthKey,//采样位数 默认 16
+                                   [NSNumber numberWithInt: 1], AVNumberOfChannelsKey,//通道的数目
+                                   //                                   [NSNumber numberWithBool:NO],AVLinearPCMIsBigEndianKey,//大端还是小端 是内存的组织方式
+                                   //                                   [NSNumber numberWithBool:NO],AVLinearPCMIsFloatKey,//采样信号是整数还是浮点数
+                                   //                                   [NSNumber numberWithInt: AVAudioQualityMedium],AVEncoderAudioQualityKey,//音频编码质量
+                                   nil];
+    return settings;
+}
+
 
 @end
 
-@implementation CDVAudioFile
+@implementation CDVVoiceFile
 
 @synthesize resourcePath;
+@synthesize wavFilePath;
+@synthesize amrFilePath;
 @synthesize resourceURL;
 @synthesize player, volume;
 @synthesize recorder;
 
+- (int)amrToWav
+{
+    if (! DecodeAMRFileToWAVEFile([amrFilePath cStringUsingEncoding:NSUTF8StringEncoding], [wavFilePath cStringUsingEncoding:NSUTF8StringEncoding]))
+        return 0;
+    return 1;
+}
+
+- (int)wavToAmr
+{
+    if (EncodeWAVEFileToAMRFile([wavFilePath cStringUsingEncoding:NSUTF8StringEncoding], [amrFilePath cStringUsingEncoding:NSUTF8StringEncoding], 1, 16))
+        return 0;
+    return 1;
+}
+
 @end
-@implementation CDVAudioPlayer
-@synthesize mediaId;
+@implementation CDVVoicePlayer
+@synthesize voiceId;
 
 @end
 
-@implementation CDVAudioRecorder
-@synthesize mediaId;
+@implementation CDVVoiceRecorder
+@synthesize voiceId;
 
 @end
