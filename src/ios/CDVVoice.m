@@ -597,7 +597,7 @@
     double power = -1;
     
     if ((voiceFile != nil) && (voiceFile.recorder != nil) && [voiceFile.recorder isRecording]) {
-        
+        [voiceFile.recorder updateMeters];
         power  = pow(10, (0.05 * [voiceFile.recorder peakPowerForChannel:0]));
     }
     CDVPluginResult* result = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsDouble:power];
@@ -643,6 +643,7 @@
             
             // create a new recorder for each start record
             voiceFile.recorder = [[CDVVoiceRecorder alloc] initWithURL:voiceFile.resourceURL settings:[CDVVoice getRecorderSettings] error:&error];
+            voiceFile.recorder.meteringEnabled = YES;
             
             bool recordingSuccess = NO;
             if (error == nil) {
