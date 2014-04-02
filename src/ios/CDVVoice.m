@@ -318,7 +318,7 @@
 - (void)setVolume:(CDVInvokedUrlCommand*)command
 {
     NSString* callbackId = command.callbackId;
-
+    [self.commandDelegate runInBackground:^{
 #pragma unused(callbackId)
     NSString* voiceId = [command.arguments objectAtIndex:0];
     NSNumber* volume = [command.arguments objectAtIndex:1 withDefault:[NSNumber numberWithFloat:1.0]];
@@ -333,6 +333,7 @@
             [[self voiceCache] setObject:voiceFile forKey:voiceId];
         }
     }
+    }];
 
     // don't care for any callbacks
 }
@@ -345,7 +346,9 @@
     NSString* voiceId = [command.arguments objectAtIndex:0];
     NSString* resourcePath = [command.arguments objectAtIndex:1];
     NSDictionary* options = [command.arguments objectAtIndex:2 withDefault:nil];
-
+    
+    [self.commandDelegate runInBackground:^{
+        
     BOOL bError = NO;
     NSString* jsString = nil;
 
@@ -416,6 +419,7 @@
     }
     // else voiceFile was nil - error already returned from voiceFile for resource
     return;
+    }];
 }
 
 - (BOOL)prepareToPlay:(CDVVoiceFile*)voiceFile withId:(NSString*)voiceId
@@ -470,7 +474,10 @@
 
 - (void)stopPlaying:(CDVInvokedUrlCommand*)command
 {
+    
     NSString* voiceId = [command.arguments objectAtIndex:0];
+    [self.commandDelegate runInBackground:^{
+        
     CDVVoiceFile* voiceFile = [[self voiceCache] objectForKey:voiceId];
     NSString* jsString = nil;
 
@@ -483,11 +490,14 @@
     if (jsString) {
         [self.commandDelegate evalJs:jsString];
     }
+        
+    }];
 }
 
 - (void)pausePlaying:(CDVInvokedUrlCommand*)command
 {
     NSString* voiceId = [command.arguments objectAtIndex:0];
+    [self.commandDelegate runInBackground:^{
     NSString* jsString = nil;
     CDVVoiceFile* voiceFile = [[self voiceCache] objectForKey:voiceId];
 
@@ -501,6 +511,7 @@
     if (jsString) {
         [self.commandDelegate evalJs:jsString];
     }
+    }];
 }
 
 - (void)seekTo:(CDVInvokedUrlCommand*)command
@@ -511,7 +522,7 @@
     // 2 = seek to location in milliseconds
 
     NSString* voiceId = [command.arguments objectAtIndex:0];
-
+    [self.commandDelegate runInBackground:^{
     CDVVoiceFile* voiceFile = [[self voiceCache] objectForKey:voiceId];
     double position = [[command.arguments objectAtIndex:1] doubleValue];
 
@@ -532,6 +543,7 @@
 
         [self.commandDelegate evalJs:jsString];
     }
+    }];
 }
 
 - (void)release:(CDVInvokedUrlCommand*)command
@@ -561,7 +573,7 @@
 {
     NSString* callbackId = command.callbackId;
     NSString* voiceId = [command.arguments objectAtIndex:0];
-
+    [self.commandDelegate runInBackground:^{
 #pragma unused(voiceId)
     CDVVoiceFile* voiceFile = [[self voiceCache] objectForKey:voiceId];
     double position = -1;
@@ -572,13 +584,14 @@
     CDVPluginResult* result = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsDouble:position];
     NSString* jsString = [NSString stringWithFormat:@"%@(\"%@\",%d,%.3f);\n%@", @"cordova.require('com.luhuiguo.cordova.voice.Voice').onStatus", voiceId, VOICE_POSITION, position, [result toSuccessCallbackString:callbackId]];
     [self.commandDelegate evalJs:jsString];
+    }];
 }
 
 - (void)getPower:(CDVInvokedUrlCommand *)command
 {
     NSString* callbackId = command.callbackId;
     NSString* voiceId = [command.arguments objectAtIndex:0];
-    
+    [self.commandDelegate runInBackground:^{
 #pragma unused(voiceId)
     CDVVoiceFile* voiceFile = [[self voiceCache] objectForKey:voiceId];
     double power = -1;
@@ -590,6 +603,7 @@
     CDVPluginResult* result = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsDouble:power];
     NSString* jsString = [NSString stringWithFormat:@"%@(\"%@\",%d,%.3f);\n%@", @"cordova.require('com.luhuiguo.cordova.voice.Voice').onStatus", voiceId, VOICE_POWER, power, [result toSuccessCallbackString:callbackId]];
     [self.commandDelegate evalJs:jsString];
+    }];
 }
 
 
@@ -600,6 +614,8 @@
 #pragma unused(callbackId)
 
     NSString* voiceId = [command.arguments objectAtIndex:0];
+    [self.commandDelegate runInBackground:^{
+         
     CDVVoiceFile* voiceFile = [self voiceFileForResource:[command.arguments objectAtIndex:1] withId:voiceId doValidation:YES forRecording:YES];
     __block NSString* jsString = nil;
     __block NSString* errorMsg = @"";
@@ -685,11 +701,14 @@
         jsString = [NSString stringWithFormat:@"%@(\"%@\",%d,%@);", @"cordova.require('com.luhuiguo.cordova.voice.Voice').onStatus", voiceId, VOICE_ERROR, [self createVoiceErrorWithCode:VOICE_ERR_ABORTED message:errorMsg]];
         [self.commandDelegate evalJs:jsString];
     }
+    }];
 }
 
 - (void)stopRecording:(CDVInvokedUrlCommand*)command
 {
     NSString* voiceId = [command.arguments objectAtIndex:0];
+    
+    [self.commandDelegate runInBackground:^{
 
     CDVVoiceFile* voiceFile = [[self voiceCache] objectForKey:voiceId];
     
@@ -706,6 +725,7 @@
     if (jsString) {
         [self.commandDelegate evalJs:jsString];
     }
+    }];
 }
 
 - (void)audioRecorderDidFinishRecording:(AVAudioRecorder*)recorder successfully:(BOOL)flag
@@ -815,15 +835,26 @@
 
 - (int)amrToWav
 {
-    if (! DecodeAMRFileToWAVEFile([amrFilePath cStringUsingEncoding:NSUTF8StringEncoding], [wavFilePath cStringUsingEncoding:NSUTF8StringEncoding]))
-        return 0;
+    NSFileManager* fMgr = [[NSFileManager alloc] init];
+    if (![fMgr fileExistsAtPath:wavFilePath]) {
+        if (! DecodeAMRFileToWAVEFile([amrFilePath cStringUsingEncoding:NSUTF8StringEncoding], [wavFilePath cStringUsingEncoding:NSUTF8StringEncoding])){
+            return 0;
+        }
+        
+    }
+    
+
     return 1;
 }
 
 - (int)wavToAmr
 {
-    if (EncodeWAVEFileToAMRFile([wavFilePath cStringUsingEncoding:NSUTF8StringEncoding], [amrFilePath cStringUsingEncoding:NSUTF8StringEncoding], 1, 16))
-        return 0;
+    NSFileManager* fMgr = [[NSFileManager alloc] init];
+    if (![fMgr fileExistsAtPath:amrFilePath]) {
+        if (EncodeWAVEFileToAMRFile([wavFilePath cStringUsingEncoding:NSUTF8StringEncoding], [amrFilePath cStringUsingEncoding:NSUTF8StringEncoding], 1, 16)){
+            return 0;
+        }
+    }
     return 1;
 }
 
